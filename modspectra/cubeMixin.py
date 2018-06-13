@@ -2,6 +2,7 @@ import logging
 
 from astropy import units as u
 import numpy as np 
+import matplotlib.pyplot as plt
 
 from matplotlib.patches import Ellipse 
 
