@@ -56,7 +56,7 @@ class TiltedDisk(coord.BaseCoordinateFrame):
     """
     default_representation = coord.CartesianRepresentation
     default_differential = coord.CartesianDifferential
-    
+
     frame_specific_representation_info = {
         coord.representation.CartesianDifferential: [
             coord.RepresentationMapping('d_x', 'v_x', u.km/u.s),
@@ -64,7 +64,7 @@ class TiltedDisk(coord.BaseCoordinateFrame):
             coord.RepresentationMapping('d_z', 'v_z', u.km/u.s),
         ],
     }
-    
+
     # Specify frame attributes required to fully specify the frame
     # Rotation angles
     alpha = coord.QuantityAttribute(default=0.*u.rad, unit = u.rad)
@@ -74,17 +74,17 @@ class TiltedDisk(coord.BaseCoordinateFrame):
 
 
 def get_transformation_matrix(tilteddisk_frame, inverse = False):
-	"""
-	Create coordinate transformation matrix for converting between the TiltedDisk frame and Galactocentric frame
+    """
+    Create coordinate transformation matrix for converting between the TiltedDisk frame and Galactocentric frame
 
-	Parameters
-	----------
-	tilteddisk_frame: TiltedDisk class Coordinate frame
+    Parameters
+    ----------
+    tilteddisk_frame: TiltedDisk class Coordinate frame
 
-	inverse: 'bool', optional, must be keyword
-		if True, return the transposed matrix for converting from the Galactocentric frame to the TiltedDisk frame 
+    inverse: 'bool', optional, must be keyword
+    	if True, return the transposed matrix for converting from the Galactocentric frame to the TiltedDisk frame 
 
-	"""
+    """
     alpha = tilteddisk_frame.alpha.value
     beta = tilteddisk_frame.beta.value
     theta = tilteddisk_frame.theta.value
@@ -118,25 +118,25 @@ def galactocentric_to_td(galactocentric_coord, tilteddisk_frame):
 
 
 def ellipse_equation(bd, el_constant1, el_constant2, bd_max, x_coord, y_coord):
-	"""
-	Equation for an ellipse in the form from Burton & Liszt (1978)
-	Function serves to be used in scipy.optimize.brenth to solve for bd 
+    """
+    Equation for an ellipse in the form from Burton & Liszt (1978)
+    Function serves to be used in scipy.optimize.brenth to solve for bd 
 
-	Parameters
-	----------
-	bd: 'number'
-		semi-minor axis of ellipse
-	el_constant1: 'number'
-		First parameter for defining ellipse 
-	el_constant2: 'number'
-		second parameter for defining ellipse
-	bd_max: 'number'
-		Maximum semi-minor axis allowed within defined elliptical disk
-	x_coord: 'number, ndarray'
-		x-coordinate in ellipse
-	y_coord: 'number, ndarray'
-		y-coordinate in ellipse 
-	"""
+    Parameters
+    ----------
+    bd: 'number'
+    	semi-minor axis of ellipse
+    el_constant1: 'number'
+    	First parameter for defining ellipse 
+    el_constant2: 'number'
+    	second parameter for defining ellipse
+    bd_max: 'number'
+    	Maximum semi-minor axis allowed within defined elliptical disk
+    x_coord: 'number, ndarray'
+    	x-coordinate in ellipse
+    y_coord: 'number, ndarray'
+    	y-coordinate in ellipse 
+    """
     a = bd *el_constant1 + el_constant2 * bd**2 / bd_max
     result = x_coord**2 / a**2 + y_coord**2 / bd**2 - 1.
     #result = bd**2 / a**2 * (a**2 - x_coord**2) - y_coord**2
@@ -144,19 +144,19 @@ def ellipse_equation(bd, el_constant1, el_constant2, bd_max, x_coord, y_coord):
     return result
 
 def bd_equation(bd, x_coord, y_coord):
-	"""
-	Equation of ellipse in the case that the provided point lies on the minor axis
-	Function serves to be used in scipy.optimize.brenth to solve for bd 
+    """
+    Equation of ellipse in the case that the provided point lies on the minor axis
+    Function serves to be used in scipy.optimize.brenth to solve for bd 
 
-	Parameters
-	----------
-	bd: 'number'
-		semi-minor axis of ellipse
-	x_coord: 'number, ndarray'
-		x-coordinate in ellipse
-	y_coord: 'number, ndarray'
-		y-coordinate in ellipse 
-	"""
+    Parameters
+    ----------
+    bd: 'number'
+    	semi-minor axis of ellipse
+    x_coord: 'number, ndarray'
+    	x-coordinate in ellipse
+    y_coord: 'number, ndarray'
+    	y-coordinate in ellipse 
+    """
     a = x_coord
     result = x_coord**2 / a**2 + y_coord**2 / bd**2 - 1.
     #result = bd**2 / a**2 * (a**2 - x_coord**2) - y_coord**2
@@ -164,28 +164,28 @@ def bd_equation(bd, x_coord, y_coord):
     return result
 
 def bd_solver(ell, xyz, z_sigma_lim, Hz, bd_max, el_constant1, el_constant2):
-	"""
-	Function to solve for the ellipse equation to fit into form of ellipse_equation
-	Chooses only to solve the equation numerically when necessary, avoiding the special cases.
-	Funciton written in form to use with multiprocessing.pool and functools.partial
+    """
+    Function to solve for the ellipse equation to fit into form of ellipse_equation
+    Chooses only to solve the equation numerically when necessary, avoiding the special cases.
+    Funciton written in form to use with multiprocessing.pool and functools.partial
 
-	Parameters
-	----------
-	ell: 'int'
-		element number to iterate over
-	xyz: 'ndarray with shape (3,N)'
-		xyz-coordinates
-	z_sigma_lim: 'number'
-		sigma cuttoff to stop solving Ellipse equation for for z above a specified scale height threshold
-	Hz: 'number'
-		Scale height along z axis
-	bd_max: 'number'
-		Maximum semi-minor axis allowed within defined elliptical disk
-	el_constant1: 'number'
-		First parameter for defining ellipse 
-	el_constant2: 'number'
-		second parameter for defining ellipse
-	"""
+    Parameters
+    ----------
+    ell: 'int'
+    	element number to iterate over
+    xyz: 'ndarray with shape (3,N)'
+    	xyz-coordinates
+    z_sigma_lim: 'number'
+    	sigma cuttoff to stop solving Ellipse equation for for z above a specified scale height threshold
+    Hz: 'number'
+    	Scale height along z axis
+    bd_max: 'number'
+    	Maximum semi-minor axis allowed within defined elliptical disk
+    el_constant1: 'number'
+    	First parameter for defining ellipse 
+    el_constant2: 'number'
+    	second parameter for defining ellipse
+    """
     x_coord = xyz[0,ell]
     y_coord = xyz[1,ell]
     z_coord = xyz[2,ell]
@@ -215,79 +215,79 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
                    velocity_factor, vel_0, el_constant1, el_constant2,
                    alpha, beta, theta, L_range, B_range, D_range, 
                    LSR_options={}, return_all = False, **kwargs):
-	"""
-	Creates kinematic disk following Elliptical Orbits of the from from Burton & Liszt (1982)
-	Numerically solves for ellipse equation for every point within the disk space
-	output is used directly to create a Longitude-Latitude-Velocity SpectralCube object using 'modspectra.cube.EllipticalLBD'
+    """
+    Creates kinematic disk following Elliptical Orbits of the from from Burton & Liszt (1982)
+    Numerically solves for ellipse equation for every point within the disk space
+    output is used directly to create a Longitude-Latitude-Velocity SpectralCube object using 'modspectra.cube.EllipticalLBD'
 
-	Uses numexpr package to evaluate math
-	Uses multiprocessing to solve Ellipse Equation
+    Uses numexpr package to evaluate math
+    Uses multiprocessing to solve Ellipse Equation
 
-	Parameters
-	----------
-	resolution: 'tuple, list'
-		Resolution to create grid 
-	bd_max: 'number'
-		Maximum semi-minor axis allowed within defined elliptical disk
-	Hz: 'number'
-		Scale height along z axis
-	z_sigma_lim: 'number'
-		sigma cuttoff to stop solving Ellipse equation for for z above a specified scale height threshold
-	dens0: 'number'
-		Density at midplane of Elliptical Disk
-	velocity_factor: 'number'
-		Constant used to define velocity field in Burton & Liszt model
-	vel_0: 'number'	
-		Max velocity of Elliptical orbit
-		Corresponds to velocity of outermost orbit on semi-minor axis
-	el_constant1: 'number'
-		First parameter for defining ellipse 
-	el_constant2: 'number'
-		second parameter for defining ellipse
-	alpha: 'number'
-		Tilt angle alpha - see :class:'TiltedDisk'
-	beta: 'number'
-		Tilt angle Beta - see :class:'TiltedDisk'
-		90 - beta is the inclination
-	theta: 'number'
-		Tilt angle of major axis of Ellipse - see :class:'TiltedDisk'
-	L_range: :list:'number'
-		Range of Longtiude to create grid over
-	B_range: :list:'number'
-		Range of Latitude to create grid over
-	D_range: :list:'number'
-		Range of Distances to create grid over
+    Parameters
+    ----------
+    resolution: 'tuple, list'
+    	Resolution to create grid 
+    bd_max: 'number'
+    	Maximum semi-minor axis allowed within defined elliptical disk
+    Hz: 'number'
+    	Scale height along z axis
+    z_sigma_lim: 'number'
+    	sigma cuttoff to stop solving Ellipse equation for for z above a specified scale height threshold
+    dens0: 'number'
+    	Density at midplane of Elliptical Disk
+    velocity_factor: 'number'
+    	Constant used to define velocity field in Burton & Liszt model
+    vel_0: 'number'	
+    	Max velocity of Elliptical orbit
+    	Corresponds to velocity of outermost orbit on semi-minor axis
+    el_constant1: 'number'
+    	First parameter for defining ellipse 
+    el_constant2: 'number'
+    	second parameter for defining ellipse
+    alpha: 'number'
+    	Tilt angle alpha - see :class:'TiltedDisk'
+    beta: 'number'
+    	Tilt angle Beta - see :class:'TiltedDisk'
+    	90 - beta is the inclination
+    theta: 'number'
+    	Tilt angle of major axis of Ellipse - see :class:'TiltedDisk'
+    L_range: :list:'number'
+    	Range of Longtiude to create grid over
+    B_range: :list:'number'
+    	Range of Latitude to create grid over
+    D_range: :list:'number'
+    	Range of Distances to create grid over
 
-	LSR_options: 'dictionary', optional, must be keyword
-		Dictionary of **kwargs to pass into :class:'~astropy.coordinates.GalacticLSR'
-	return_all: 'bool', optional, must be keyword
-		if True, will return all output components
-		used for diagnosing issues
+    LSR_options: 'dictionary', optional, must be keyword
+    	Dictionary of **kwargs to pass into :class:'~astropy.coordinates.GalacticLSR'
+    return_all: 'bool', optional, must be keyword
+    	if True, will return all output components
+    	used for diagnosing issues
 
-	Returns
-	-------
-	lbd_coords_withvel: :class:'~astropy.coordinates.GalacticLSR'
-		astropy.coord array containing all coordinates corresponding to fabricated grid of points
-	dens_grid: 'numpy.ndarray'
-		ndarray with shape (resolution) containing density of points in Longitude-Latitude-Distance grid
-		axes order swapped to be ready for SpectralCube creation
-	cdelt: 'numpy.ndarray'
-		ndarray with shape (3) containing the step size for Longitude, Latitude, and Distance used in the grid
-		Used for WCS object creation in later instances
+    Returns
+    -------
+    lbd_coords_withvel: :class:'~astropy.coordinates.GalacticLSR'
+    	astropy.coord array containing all coordinates corresponding to fabricated grid of points
+    dens_grid: 'numpy.ndarray'
+    	ndarray with shape (resolution) containing density of points in Longitude-Latitude-Distance grid
+    	axes order swapped to be ready for SpectralCube creation
+    cdelt: 'numpy.ndarray'
+    	ndarray with shape (3) containing the step size for Longitude, Latitude, and Distance used in the grid
+    	Used for WCS object creation in later instances
 
-	disk_coordinates: :class:'TiltedDisk', optional, only if return_all == True
-		TiltedDisk coordinate class containing grid coordinates in original tilted disk space
-	galcen_coords_withvel: :class:'~astropy.coordinates.Galactocentric'
-		TiltedDisk class transformed to Galactocentric frame 
-	bd_grid: 'numpy.ndarray'
-		ndarray with shape (resolution) containing solved values of bd from Ellipse Equation solutions
-		axes order swapped to match dens_grid
-	vel_magnitude_grid: 'numpy.ndarray'
-		ndarray with shape (resolution) contianing velocity vector magnitude at corresponding grid position
-	"""
-	# Extract resolution information
+    disk_coordinates: :class:'TiltedDisk', optional, only if return_all == True
+    	TiltedDisk coordinate class containing grid coordinates in original tilted disk space
+    galcen_coords_withvel: :class:'~astropy.coordinates.Galactocentric'
+    	TiltedDisk class transformed to Galactocentric frame 
+    bd_grid: 'numpy.ndarray'
+    	ndarray with shape (resolution) containing solved values of bd from Ellipse Equation solutions
+    	axes order swapped to match dens_grid
+    vel_magnitude_grid: 'numpy.ndarray'
+    	ndarray with shape (resolution) contianing velocity vector magnitude at corresponding grid position
+    """
+    # Extract resolution information
     nx, ny, nz = resolution
-    
+
     # Populate a uniform grid in Longitude-Latitude-Distance space
     lbd_grid = np.mgrid[L_range[0]:L_range[1]:nx*1j,
                         B_range[0]:B_range[1]:ny*1j,
@@ -296,7 +296,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
     lbd = lbd_grid.T.reshape(-1,3, order = "F").transpose()
     # Initiate astropy coordinates.Galactic object
     lbd_coords = coord.Galactic(l = lbd[0,:]*u.deg, b = lbd[1,:]*u.deg, distance = lbd[2,:]*u.kpc)
-    
+
     if return_all:
 
     	# Convert regularized grid points into Galactocentric frame
@@ -310,7 +310,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
     # Create standard numpy ndarray of disk_coords and reshape to grid, matching original lbd_grid object	
     disk_coords_arr = np.array([disk_coords.x.value, disk_coords.y.value, disk_coords.z.value])
     xyz_grid = disk_coords_arr.T.transpose().reshape(-1,nx,ny,nz)
-    
+
     # initiate partial object to solve for Ellipse Equation
     partial_bd_solver = partial(bd_solver, xyz=disk_coords_arr, z_sigma_lim = z_sigma_lim, Hz = Hz, 
                         bd_max = bd_max, el_constant1 = el_constant1, el_constant2 = el_constant2)
@@ -320,7 +320,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
     pool.close()
     # Create grid of bd values solved from Ellipse Equation, matching original lbd_grid object
     bd_grid = np.array(bd_vals).T.transpose().reshape(nx,ny,nz)
-    
+
     # Create grid of ad values (semi-major axis) derived from bd values
     ad_grid = ne.evaluate("bd_grid * (el_constant1 + el_constant2 * bd_grid / bd_max)")
 
@@ -333,9 +333,9 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
     # Solve for velocity magnitude using Angular Momentum and Velcotiy field from Burton & Liszt
     r_x = xyz_grid[0,:,:,:]
     r_y = xyz_grid[1,:,:,:]
-    
+
     normalizer = ne.evaluate("1 / sqrt((r_x / ad_grid**2)**2 + (r_y / bd_grid**2)**2)")
-    
+
     xtangent = ne.evaluate("r_y / bd_grid**2 * normalizer")
     ytangent = ne.evaluate("-r_x / ad_grid**2 * normalizer")
     # Angular momentum along the disk minor axis
@@ -356,14 +356,14 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
     disk_coordinates = TiltedDisk(x = disk_coords.x, y = disk_coords.y, z = disk_coords.z,
                 v_x = vel_cartesian.x, v_y = vel_cartesian.y, v_z = vel_cartesian.z, 
                 alpha = alpha*u.deg, beta = beta*u.deg, theta = theta*u.deg)
-    
+
     # Transform to GalacticLSR frame
     if return_all:
-		galcen_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**kwargs))
+    	galcen_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**kwargs))
     	lbd_coords_withvel = galcen_coords_withvel.transform_to(coord.GalacticLSR(**LSR_options))
     else:
     	lbd_coords_withvel = disk_coordinates.transform_to(coord.GalacticLSR(**LSR_options))
-    
+
     # save Grid creation information for use in creating accurate WCS object associated with SpectralCube Object in future
     dD = lbd_grid[2,0,0,1] - lbd_grid[2,0,0,0]
     dB = lbd_grid[1,0,1,1] - lbd_grid[1,0,0,0]
@@ -380,78 +380,78 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 
 def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax, 
                     vel_resolution, L_range, B_range, species = 'hi', T_gas = 120. *u.K):
-	"""
-	Creates a Longitude-Latitude-Velocity SpectralCube object of neutral (HI 21cm) or ionized (H-Alpha) gas emission
-	Uses output calculated from 'modspectra.cube.EllipticalLBD'
+    """
+    Creates a Longitude-Latitude-Velocity SpectralCube object of neutral (HI 21cm) or ionized (H-Alpha) gas emission
+    Uses output calculated from 'modspectra.cube.EllipticalLBD'
 
-	Uses numexpr package to evaluate math
+    Uses numexpr package to evaluate math
 
-	Parameters
-	----------
-	lbd_coords_withvel: :class:'~astropy.coordinates.GalacticLSR'
-		astropy.coord array containing all coordinates corresponding to fabricated grid of points
-	dens_grid: 'numpy.ndarray'
-		ndarray with shape (resolution) containing density of points in Longitude-Latitude-Distance grid
-		axes order swapped to be ready for SpectralCube creation
-	cdelt: 'numpy.ndarray'
-		ndarray with shape (3) containing the step size for Longitude, Latitude, and Distance used in the grid
-		Used for WCS object creation in later instances
-	vel_disp: 'number, Quantity
-		Velocity dispersion of the gas in units of km/s (if not Quantity)
-	vmin: 'number, Quantity'
-		Min Velocity to create in grid in units of km/s (if not Quantity)
-	vmax: 'number, Quantity'
-		Max Velocity to create in grid in units of km/s (if not Quantity)
-	vel_resolution: 'int'
-		Resolution to Create along velocity axis
-	L_range: :list:'number'
-		Range of Longtiude to create grid over	
-	B_range: :list:'number'
-		Range of Latitude to create grid over
+    Parameters
+    ----------
+    lbd_coords_withvel: :class:'~astropy.coordinates.GalacticLSR'
+    	astropy.coord array containing all coordinates corresponding to fabricated grid of points
+    dens_grid: 'numpy.ndarray'
+    	ndarray with shape (resolution) containing density of points in Longitude-Latitude-Distance grid
+    	axes order swapped to be ready for SpectralCube creation
+    cdelt: 'numpy.ndarray'
+    	ndarray with shape (3) containing the step size for Longitude, Latitude, and Distance used in the grid
+    	Used for WCS object creation in later instances
+    vel_disp: 'number, Quantity
+    	Velocity dispersion of the gas in units of km/s (if not Quantity)
+    vmin: 'number, Quantity'
+    	Min Velocity to create in grid in units of km/s (if not Quantity)
+    vmax: 'number, Quantity'
+    	Max Velocity to create in grid in units of km/s (if not Quantity)
+    vel_resolution: 'int'
+    	Resolution to Create along velocity axis
+    L_range: :list:'number'
+    	Range of Longtiude to create grid over	
+    B_range: :list:'number'
+    	Range of Latitude to create grid over
 
-	species: 'str', optional, must be keyword of either 'hi' or 'ha'
-		Specifies whether emission cube will be neutral (HI 21-cm) gas or ionized (H-Alpha) gas emission 
-		Defaults to HI netural gas
-	T_gas: 'number, Quantity', optional, must be keyword
-		Temperature of neutral HI 21-cm emitting gas in Kelvin
-		Defaults to 120 K
+    species: 'str', optional, must be keyword of either 'hi' or 'ha'
+    	Specifies whether emission cube will be neutral (HI 21-cm) gas or ionized (H-Alpha) gas emission 
+    	Defaults to HI netural gas
+    T_gas: 'number, Quantity', optional, must be keyword
+    	Temperature of neutral HI 21-cm emitting gas in Kelvin
+    	Defaults to 120 K
 
-	Returns
-	-------
-	emission_cube: :class:'numpy.ndarray'
+    Returns
+    -------
+    emission_cube: :class:'numpy.ndarray'
         Emission values in LBD cube
     wcs: '~astropy.wcs.WCS'
         WCS information associated with emission_cube 
-	"""
+    """
 
-	# Check for units
-	if not isinstance(vel_disp, u.Quantity):
-		vel_disp = u.Quantity(vel_disp, unit = u.km / u.s)
-		logging.warning("No units specified for Velocity Dispersion, vel_disp, assuming"
-				"{}".format(vel_disp.unit))
-	elif not vel_disp.unit == u.km/u.s:
-		vel_disp = vel_disp.to(u.km / u.s)
+    # Check for units
+    if not isinstance(vel_disp, u.Quantity):
+    	vel_disp = u.Quantity(vel_disp, unit = u.km / u.s)
+    	logging.warning("No units specified for Velocity Dispersion, vel_disp, assuming"
+    			"{}".format(vel_disp.unit))
+    elif not vel_disp.unit == u.km/u.s:
+    	vel_disp = vel_disp.to(u.km / u.s)
 
-	if not isinstance(vmin, u.Quantity):
-		vmin = u.Quantity(vmin, unit = u.km / u.s)
-		logging.warning("No units specified for Min Velocity, vmin, assuming"
-				"{}".format(vmin.unit))
-	elif not vmin.unit == u.km/u.s:
-		vmin = vmin.to(u.km / u.s)
+    if not isinstance(vmin, u.Quantity):
+    	vmin = u.Quantity(vmin, unit = u.km / u.s)
+    	logging.warning("No units specified for Min Velocity, vmin, assuming"
+    			"{}".format(vmin.unit))
+    elif not vmin.unit == u.km/u.s:
+    	vmin = vmin.to(u.km / u.s)
 
-	if not isinstance(vmax, u.Quantity):
-		vmax = u.Quantity(vmax, unit = u.km / u.s)
-		logging.warning("No units specified for Max Velocity, vmax, assuming"
-				"{}".format(vmax.unit))
-	elif not vmax.unit == u.km/u.s:
-		vmax = vmax.to(u.km / u.s)
+    if not isinstance(vmax, u.Quantity):
+    	vmax = u.Quantity(vmax, unit = u.km / u.s)
+    	logging.warning("No units specified for Max Velocity, vmax, assuming"
+    			"{}".format(vmax.unit))
+    elif not vmax.unit == u.km/u.s:
+    	vmax = vmax.to(u.km / u.s)
 
-	if not isinstance(T_gas, u.Quantity):
-		T_gas = u.Quantity(T_gas, unit = u.K)
-		logging.warning("No units specified for T_gas, assuming"
-				"{}".format(T_gas.unit))
-	elif not T_gas.unit == u.K:
-		T_gas = T_gas.to(u.K)
+    if not isinstance(T_gas, u.Quantity):
+    	T_gas = u.Quantity(T_gas, unit = u.K)
+    	logging.warning("No units specified for T_gas, assuming"
+    			"{}".format(T_gas.unit))
+    elif not T_gas.unit == u.K:
+    	T_gas = T_gas.to(u.K)
 
 
 
@@ -464,11 +464,11 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
     # Define the velocity channels
     VR, dv = np.linspace(vmin,vmax,vel_resolution, retstep=True)
     vr_grid = np.swapaxes(lbd_coords_withvel.radial_velocity.value.T.transpose().reshape(nx,ny,nz),0,2)
-    
+
     # Calculate my sigma values
     vr_grid_plus = vr_grid[:,:,:,None]
     gaussian_cells = ne.evaluate("exp(-1/2. * ((vr_grid_plus - VR) / vel_disp)**2)")
-    
+
     # Calculate emission in each grid cell in Longitude-Latitude-Velocity space
     # Sums over Distance space
     dist = cdelt[2]
@@ -487,7 +487,7 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
     DBL_wcs.wcs.ctype=["GLON-CAR", "GLAT-CAR", "VRAD"]
     DBL_wcs.wcs.cunit=["deg", "deg", "km/s"]
     DBL_wcs.wcs.cdelt=np.array([cdelt[0], cdelt[1], dv.value])
-    
+
     # Return Emission cube and WCS info
     return emission_cube, DBL_wcs
 
@@ -516,7 +516,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         from SpectralCube
     wcs_tolerance: 'number'
         from SpectralCube
-    
+
     resolution: 'tuple or list'
         Defines LBD Resolution of grid, must be shape (3)
     vel_resolution: 'int'
@@ -785,7 +785,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                          header=header, allow_huge_operations=allow_huge_operations, beam=beam,
                          wcs_tolerance=wcs_tolerance, **kwargs)
         
-    
+
 
 
 
