@@ -15,6 +15,7 @@ import scipy.interpolate
 import scipy.integrate as integrate
 
 import multiprocessing
+from functools import partial
 
 from .cubeMixin import EmissionCubeMixin
 
