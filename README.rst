@@ -16,3 +16,16 @@ the terms of the BSD 3-Clause license. This package is based upon
 the [Astropy package template](https://github.com/astropy/package-template)
 which is licensed under the BSD 3-clause licence. See the licenses folder for
 more information.
+
+
+
+Installation
+----------
+
+To install modspectra, download the package using::
+	
+	$ git clone https://github.com/Deech08/modspectra.git
+
+Install using pip::
+	
+	pip install -e /path/to/package
