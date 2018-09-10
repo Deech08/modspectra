@@ -754,7 +754,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             elif not vmax.unit == u.km/u.s:
                 vmax = vmax.to(u.km / u.s)
 
-            if not da_chunks_xyz and if memmap:
+            if (not da_chunks_xyz) and (memmap):
                 da_chunks_xyz = 50
                 logging.warning("Using a default chunksize of 50 per axis for memory mapping via dask")
 
