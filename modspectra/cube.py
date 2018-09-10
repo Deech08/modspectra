@@ -3,6 +3,9 @@ import os
 from astropy import units as u
 from spectral_cube import SpectralCube
 import numexpr as ne
+import dask.array as da
+from dask.diagnostics import ProgressBar
+import logging
 
 
 from astropy.coordinates.representation import CylindricalRepresentation, CartesianRepresentation, CartesianDifferential
@@ -215,7 +218,7 @@ def bd_solver(ell, xyz, z_sigma_lim, Hz, bd_max, el_constant1, el_constant2):
 def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
                    velocity_factor, vel_0, el_constant1, el_constant2,
                    alpha, beta, theta, L_range, B_range, D_range, 
-                   LSR_options={}, return_all = False, **kwargs):
+                   LSR_options={}, galcen_options = {}, return_all = False, **kwargs):
     """
     Creates kinematic disk following Elliptical Orbits of the from from Burton & Liszt (1982)
     Numerically solves for ellipse equation for every point within the disk space
@@ -360,7 +363,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 
     # Transform to GalacticLSR frame
     if return_all:
-    	galcen_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**kwargs))
+    	galcen_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**galcen_options))
     	lbd_coords_withvel = galcen_coords_withvel.transform_to(coord.GalacticLSR(**LSR_options))
     else:
     	lbd_coords_withvel = disk_coordinates.transform_to(coord.GalacticLSR(**LSR_options))
@@ -380,7 +383,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 
 
 def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax, 
-                    vel_resolution, L_range, B_range, species = 'hi', T_gas = 120. *u.K):
+                    vel_resolution, L_range, B_range, species = 'hi', T_gas = 120. *u.K, memmap = False, da_chunks_xyz = 50):
     """
     Creates a Longitude-Latitude-Velocity SpectralCube object of neutral (HI 21cm) or ionized (H-Alpha) gas emission
     Uses output calculated from 'modspectra.cube.EllipticalLBD'
@@ -468,18 +471,36 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
 
     # Calculate my sigma values
     vr_grid_plus = vr_grid[:,:,:,None]
-    gaussian_cells = ne.evaluate("exp(-1/2. * ((vr_grid_plus - VR) / vel_disp)**2)")
+    if memmap:
+        gaussian_cells = da.exp(-1/2. * ((da.from_array(vr_grid_plus, chunks = (da_chunks_xyz,da_chunks_xyz,da_chunks_xyz,1)) - 
+                                da.from_array(VR, chunks = -1)) / vel_disp.value)**2)
+    else:
+        gaussian_cells = ne.evaluate("exp(-1/2. * ((vr_grid_plus - VR) / vel_disp)**2)")
 
     # Calculate emission in each grid cell in Longitude-Latitude-Velocity space
     # Sums over Distance space
     dist = cdelt[2]
-    if species == 'hi':
-        density_grid = ne.evaluate("density_gridin *33.52 / (T_gas * vel_disp)* dist *1000. / 50.")
-        optical_depth = np.einsum('jkli, jkl->ijkl', gaussian_cells, density_grid).sum(axis = 1)
-        emission_cube = ne.evaluate("T_gas * (1 - exp(-1.* optical_depth))") * u.K
-    if species =='ha':
-        EM = ne.evaluate("density_gridin**2 * dist * 1000.")
-        emission_cube = np.einsum('jkli, jkl->ijkl', gaussian_cells, EM).sum(axis = 1)
+    if memmap:
+        if species == 'hi':
+            density_grid = da.from_array(density_gridin, chunks = (da_chunks_xyz,da_chunks_xyz,da_chunks_xyz)) * \
+                                        33.52 / (T_gas.value * vel_disp.value) * dist * 1000. / 50.
+            optical_depth = da.einsum('jkli, jkl->ijkl', gaussian_cells, density_grid).sum(axis = 1)
+            result_cube = T_gas * (1  - da.exp(-1.* optical_depth))
+            with ProgressBar():
+                emission_cube = result_cube.compute() * u.K
+        if species == 'ha':
+            EM = da.from_array(density_gridin, chunks = (da_chunks_xyz,da_chunks_xyz,da_chunks_xyz)) **2 * dist * 1000.
+            result_cube = da.einsum('jkli, jkl->ijkl', gaussian_cells, EM).sum(axis = 1)
+            with ProgressBar():
+                emission_cube = result_cube.compute() * u.cm**(-6) * u.pc
+    else:
+        if species == 'hi':
+            density_grid = ne.evaluate("density_gridin *33.52 / (T_gas * vel_disp)* dist *1000. / 50.")
+            optical_depth = np.einsum('jkli, jkl->ijkl', gaussian_cells, density_grid).sum(axis = 1)
+            emission_cube = ne.evaluate("T_gas * (1 - exp(-1.* optical_depth))") * u.K
+        if species =='ha':
+            EM = ne.evaluate("density_gridin**2 * dist * 1000.")
+            emission_cube = np.einsum('jkli, jkl->ijkl', gaussian_cells, EM).sum(axis = 1)
         
     # Create WCS Axes
     DBL_wcs = wcs.WCS(naxis = 3)
@@ -599,8 +620,8 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                  bd_max = None, Hz = None, z_sigma_lim = None, dens0 = None,
                  velocity_factor = None, vel_0 = None, el_constant1 = None, el_constant2 = None, 
                  vel_disp = None, vmin = None, vmax = None, 
-                 species = None, T_gas = None, LSR_options = {}, return_all = False, 
-                 BL82 = False, defaults = False, create = False, **kwargs):
+                 species = None, T_gas = None, LSR_options = {}, galcen_options = {}, return_all = False, 
+                 BL82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None, **kwargs):
 
         if not meta:
             meta = {}
@@ -644,94 +665,98 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             # Check units
             if not isinstance(L_range, u.Quantity):
                 L_range = u.Quantity(L_range, unit = u.deg)
-                logging.warning("No units specified for Longitude Range, assuming"
+                logging.warning("No units specified for Longitude Range, assuming "
                         "{}".format(L_range.unit))
             elif not L_range.unit == u.deg:
                 L_range = L_range.to(u.deg)
 
             if not isinstance(B_range, u.Quantity):
                 B_range = u.Quantity(B_range, unit = u.deg)
-                logging.warning("No units specified for Latitude Range, assuming"
+                logging.warning("No units specified for Latitude Range, assuming "
                         "{}".format(B_range.unit))
             elif not B_range.unit == u.deg:
                 B_range = B_range.to(u.deg)
 
             if not isinstance(D_range, u.Quantity):
                 D_range = u.Quantity(D_range, unit = u.kpc)
-                logging.warning("No units specified for Distance Range, assuming"
+                logging.warning("No units specified for Distance Range, assuming "
                         "{}".format(D_range.unit))
             elif not D_range.unit == u.kpc:
                 D_range = D_range.to(u.kpc)
 
             if not isinstance(alpha, u.Quantity):
                 alpha = u.Quantity(alpha, unit = u.deg)
-                logging.warning("No units specified for Alpha, assuming"
+                logging.warning("No units specified for Alpha, assuming "
                         "{}".format(alpha.unit))
             elif not alpha.unit == u.deg:
                 alpha = alpha.to(u.deg)
 
             if not isinstance(beta, u.Quantity):
                 theta = u.Quantity(beta, unit = u.deg)
-                logging.warning("No units specified for Beta, assuming"
+                logging.warning("No units specified for Beta, assuming "
                         "{}".format(beta.unit))
             elif not beta.unit == u.deg:
                 beta = beta.to(u.deg)
 
             if not isinstance(theta, u.Quantity):
                 theta = u.Quantity(theta, unit = u.deg)
-                logging.warning("No units specified for Theta, assuming"
+                logging.warning("No units specified for Theta, assuming "
                         "{}".format(theta.unit))
             elif not theta.unit == u.deg:
                 theta = theta.to(u.deg)
 
             if not isinstance(bd_max, u.Quantity):
                 bd_max = u.Quantity(bd_max, unit = u.kpc)
-                logging.warning("No units specified for Max Semi-minor axis, bd_max, assuming"
+                logging.warning("No units specified for Max Semi-minor axis, bd_max, assuming "
                         "{}".format(bd_max.unit))
             elif not bd_max.unit == u.kpc:
                 bd_max = bd_max.to(u.kpc)
 
             if not isinstance(Hz, u.Quantity):
                 Hz = u.Quantity(Hz, unit = u.kpc)
-                logging.warning("No units specified for Vertical Scale Height, Hz, assuming"
+                logging.warning("No units specified for Vertical Scale Height, Hz, assuming "
                         "{}".format(Hz.unit))
             elif not Hz.unit == u.kpc:
                 Hz = Hz.to(u.kpc)
 
             if not isinstance(dens0, u.Quantity):
                 dens0 = u.Quantity(dens0, unit = 1 / u.cm / u.cm / u.cm)
-                logging.warning("No units specified for Midplane Density, dens0, assuming"
+                logging.warning("No units specified for Midplane Density, dens0, assuming "
                         "{}".format(dens0.unit))
             elif not dens0.unit == 1 / u.cm / u.cm / u.cm:
                 dens0 = dens0.to(1 / u.cm / u.cm / u.cm)
 
             if not isinstance(vel_0, u.Quantity):
                 vel_0 = u.Quantity(vel_0, unit = u.km / u.s)
-                logging.warning("No units specified for Max Velocity, vel_0, assuming"
+                logging.warning("No units specified for Max Velocity, vel_0, assuming "
                         "{}".format(vel_0.unit))
             elif not vel_0.unit == u.km/u.s:
                 vel_0 = vel_0.to(u.km / u.s)
 
             if not isinstance(vel_disp, u.Quantity):
                 vel_disp = u.Quantity(vel_disp, unit = u.km / u.s)
-                logging.warning("No units specified for Velocity Dispersion, vel_disp, assuming"
+                logging.warning("No units specified for Velocity Dispersion, vel_disp, assuming "
                         "{}".format(vel_disp.unit))
             elif not vel_disp.unit == u.km/u.s:
                 vel_disp = vel_disp.to(u.km / u.s)
 
             if not isinstance(vmin, u.Quantity):
                 vmin = u.Quantity(vmin, unit = u.km / u.s)
-                logging.warning("No units specified for Min Velocity, vmin, assuming"
+                logging.warning("No units specified for Min Velocity, vmin, assuming "
                         "{}".format(vmin.unit))
             elif not vmin.unit == u.km/u.s:
                 vmin = vmin.to(u.km / u.s)
 
             if not isinstance(vmax, u.Quantity):
                 vmax = u.Quantity(vmax, unit = u.km / u.s)
-                logging.warning("No units specified for Max Velocity, vmax, assuming"
+                logging.warning("No units specified for Max Velocity, vmax, assuming "
                         "{}".format(vmax.unit))
             elif not vmax.unit == u.km/u.s:
                 vmax = vmax.to(u.km / u.s)
+
+            if not da_chunks_xyz and if memmap:
+                da_chunks_xyz = 50
+                logging.warning("Using a default chunksize of 50 per axis for memory mapping via dask")
 
             # Assign attributes
             self.bd_max = bd_max
@@ -762,7 +787,8 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                                                 velocity_factor, vel_0.value, el_constant1, el_constant2, 
                                                 alpha.value, beta.value, theta.value, 
                                                 L_range.value, B_range.value, D_range.value, 
-                                                LSR_options = LSR_options, return_all = return_all, **kwargs)
+                                                LSR_options = LSR_options, galcen_options = galcen_options, 
+                                                return_all = return_all, **kwargs)
 
             if return_all:
                 self.LBD_output_keys = ['lbd_coords', 'disk_density', 'cdelt', 
@@ -775,7 +801,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             data, wcs = EllipticalLBV(self.LBD_output[0], self.LBD_output[1], 
                                 self.LBD_output[2], vel_disp, vmin, vmax, 
                                 vel_resolution, L_range.value, B_range.value, 
-                                species = species, T_gas = T_gas)
+                                species = species, T_gas = T_gas, memmap = memmap, da_chunks_xyz = da_chunks_xyz)
 
             # Metadata with unit info
             meta = {}

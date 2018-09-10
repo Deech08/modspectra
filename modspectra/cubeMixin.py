@@ -38,6 +38,38 @@ class EmissionCubeMixin(object):
         """
         return Ellipse(xy = [0.,0.], width = self.bd_max.value * 2., height = self.ad(self.bd_max).value * 2., angle = -self.theta.value)
 
+    def extract_spectrum(self, longitude, latitude):
+        """
+        Returns 2 'np.array' of the spectrum closest to the specified location as [velocity], [data]
+
+        Parameters
+        ----------
+
+        longitude: 'Quantity or number'
+        	Longitude to extract nearest spectrum from (in Galactic Coordinates)
+        	if not a Quantity, default is u.deg
+        latitude: 'Quantity or number'
+        	Latitude to extract nearest spectrum from (in Galactic Coordinates)
+        	if not a Quantity, default is u.deg
+
+        """
+
+        if not isinstance(longitude, u.Quantity):
+        	longitude = longitude * u.deg
+        if not isinstance(latitude, u.Quantity):
+        	latitude = latitude * u.deg
+
+        # find index of closest value
+        vel_unit, lat_axis_values, lon_unit = self.world[int(self.shape[0]/2), :, int(self.shape[2]/2)]
+        lat_slice = find_nannearest_idx(lat_axis_values, latitude)[0]
+        _, lat_unit, lon_axis_values = self.world[int(self.shape[0]/2), int(self.shape[1]/2), :]
+        lon_slice = find_nannearest_idx(lon_axis_values, longitude)[0]
+
+        # return results
+        return self.spectral_axis, self.unmasked_data[:,lat_slice,lon_slice]
+
+
+
     def lv_plot(self, latitude, swap_axes = False, fig = None, frame_class = RectangularFrame, aspect = 'auto',
                 orientation = 'vertical', vmin = 5., vmax = 500., norm = LogNorm(), cmap = 'YlGnBu_r',
                 invert_xaxis = False, invert_yaxis = False, spectral_unit = u.km/u.s, over_contour = None, 
