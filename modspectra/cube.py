@@ -4,6 +4,7 @@ from astropy import units as u
 from spectral_cube import SpectralCube
 import numexpr as ne
 import dask.array as da
+from dask import delayed
 from dask.diagnostics import ProgressBar
 import logging
 
@@ -13,6 +14,7 @@ import astropy.coordinates as coord
 from astropy.coordinates import frame_transform_graph
 
 from astropy import wcs
+from astropy.io import fits
 
 import scipy.interpolate
 import scipy.integrate as integrate
@@ -21,6 +23,8 @@ import multiprocessing
 from functools import partial
 
 from .cubeMixin import EmissionCubeMixin
+
+import datetime
 
 def ensure_dir(file_path):
     directory = os.path.dirname(file_path)
@@ -217,8 +221,9 @@ def bd_solver(ell, xyz, z_sigma_lim, Hz, bd_max, el_constant1, el_constant2):
 
 def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
                    velocity_factor, vel_0, el_constant1, el_constant2,
-                   alpha, beta, theta, L_range, B_range, D_range, 
-                   LSR_options={}, galcen_options = {}, return_all = False, **kwargs):
+                   alpha, beta, theta, L_range, B_range, D_range, species = 'hi',
+                   LSR_options={}, galcen_options = {}, visualize = False,
+                   memmap = False, da_chunks_xyz = 50, return_all = False, **kwargs):
     """
     Creates kinematic disk following Elliptical Orbits of the from from Burton & Liszt (1982)
     Numerically solves for ellipse equation for every point within the disk space
@@ -292,98 +297,225 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
     # Extract resolution information
     nx, ny, nz = resolution
 
-    # Populate a uniform grid in Longitude-Latitude-Distance space
-    lbd_grid = np.mgrid[L_range[0]:L_range[1]:nx*1j,
-                        B_range[0]:B_range[1]:ny*1j,
-                        D_range[0]:D_range[1]:nz*1j]
-    # Transform grid into a 3 x N array for Longitude, Latitude, Distance axes                    
-    lbd = lbd_grid.T.reshape(-1,3, order = "F").transpose()
-    # Initiate astropy coordinates.Galactic object
-    lbd_coords = coord.Galactic(l = lbd[0,:]*u.deg, b = lbd[1,:]*u.deg, distance = lbd[2,:]*u.kpc)
+    if memmap:
+        # Populate a uniform grid in Longitude-Latitude-Distance space
+        lbd_grid = delayed(np.mgrid)[L_range[0]:L_range[1]:nx*1j,
+                                     B_range[0]:B_range[1]:ny*1j,
+                                     D_range[0]:D_range[1]:nz*1j]
+        # Transform grid into a 3 x N array for Longitude, Latitude, Distance axes                    
+        lbd = lbd_grid.T.reshape(-1,3, order = "F").transpose()
+        # Initiate astropy coordinates.Galactic object
+        lbd_coords = delayed(coord.Galactic)(l = lbd[0,:]*u.deg, b = lbd[1,:]*u.deg, distance = lbd[2,:]*u.kpc)
+        galcen_coords = lbd_coords.transform_to(coord.Galactocentric(**galcen_options))
+        disk_coords = galcen_coords.transform_to(TiltedDisk(alpha = alpha*u.deg, 
+                                                            beta = beta*u.deg, theta = theta*u.deg)) #Delayed
 
-    if return_all:
+        # Create standard numpy ndarray of disk_coords and reshape to grid, matching original lbd_grid object 
+        disk_coords_arr = delayed(np.array)([disk_coords.x.value, disk_coords.y.value, disk_coords.z.value])
+        xyz_grid = delayed(da.from_array)(disk_coords_arr.T.transpose().reshape(-1,nx,ny,nz),
+                                            chunks = (-1,da_chunks_xyz,da_chunks_xyz,da_chunks_xyz)) 
 
-    	# Convert regularized grid points into Galactocentric frame
-    	galcen_coords = lbd_coords.transform_to(coord.Galactocentric(**kwargs))
-    	disk_coords = galcen_coords.transform_to(TiltedDisk(alpha = alpha*u.deg, 
-                                                        beta = beta*u.deg, theta = theta*u.deg))
+        # initiate partial object to solve for Ellipse Equation
+        partial_bd_solver = delayed(partial)(bd_solver, xyz=disk_coords_arr, z_sigma_lim = z_sigma_lim, Hz = Hz, 
+                                     bd_max = bd_max, el_constant1 = el_constant1, el_constant2 = el_constant2)
+        # Solve for bd values
+        #print("Starting bd solver:")
+        #with ProgressBar():
+        pool = multiprocessing.Pool()
+        bd_vals = delayed(pool.map)(partial_bd_solver, range(nx*ny*nz))
+
+        # Create grid of bd values solved from Ellipse Equation, matching original lbd_grid object
+        #print("Computing semi_minor axis parameter, bd:")
+        #if visualize:
+            #bd_vals.visualize(filename = 'bdValsGraph.svg')
+        #with ProgressBar():
+        bd_vals_arr = delayed(da.from_array)(bd_vals, chunks = int(da_chunks_xyz * da_chunks_xyz * 0.125 * da_chunks_xyz))
+        #print("start bd_grid Calculation")
+        bd_grid = delayed(da.from_array)(bd_vals_arr.T.transpose().reshape(nx,ny,nz), chunks = da_chunks_xyz)
+
+        # Create grid of ad values (semi-major axis) derived from bd values
+        ad_grid = delayed(bd_grid * (el_constant1 + el_constant2 * bd_grid / bd_max))
+       
+        # Create grid of density values for the Elliptical Disk, mathcing original lbd_grid object
+        #print("Computing grid z-coordinates in Disk Frame:")
+        #with ProgressBar():
+        z_coor = xyz_grid[2,:,:,:]#.compute() #Delayed Dask Array of z coordinate values
+        dens_grid = da.from_array(np.zeros((nx,ny,nz)),chunks = da_chunks_xyz)
+
+        def define_density_grid(density, z,z_sigma, bd, bdmax, H, density0):
+            density[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] = density0 * \
+                    np.exp(-0.5 * (z[(np.abs(z)<(z_sigma * H)) & (bd<bdmax)] / H)**2)
+
+            return density
+
+        dens_grid = delayed(define_density_grid)(dens_grid, z_coor, z_sigma_lim, bd_grid, 
+                                                bd_max, Hz, dens0)
+
+
+        r_x = xyz_grid[0,:,:,:] #Delayed dask array
+        r_y = xyz_grid[1,:,:,:] #Delayed dask array
+
+        normalizer = 1. / delayed(da.sqrt)((r_x / ad_grid**2)**2 + (r_y / bd_grid**2)**2) #Delayed dask array
+
+        xtangent = r_y / bd_grid**2 * normalizer #Delayed dask array 
+        ytangent = -r_x / ad_grid**2 * normalizer #Delayed dask array
+
+        # Angular momentum along the disk minor axis
+        Lz_minor_axis = 0. - bd_grid * vel_0 * (1. - delayed(da.exp)(-bd_grid / velocity_factor))
+        vel_magnitude_grid = delayed(da.fabs)(Lz_minor_axis / (r_x * ytangent - r_y * xtangent))
+
+        # Greate grid containing velocity vectors for orbits
+        vel_xyz = da.from_array(np.zeros(3*nx*ny*nz).reshape(3,nx,ny,nz),
+                                chunks = (-1,da_chunks_xyz,da_chunks_xyz,da_chunks_xyz))
+        vx = xtangent * vel_magnitude_grid
+        vy = ytangent * vel_magnitude_grid
+
+        def assign_velocity(velocity_grid, velx, vely):
+            velocity_grid[0,:,:,:] = velx
+            velocity_grid[1,:,:,:] = vely
+            return velocity_grid
+
+        #Assign Velocities to array
+        vel_xyz = delayed(assign_velocity)(vel_xyz, vx, vy)
+
+        # vel_xyz[0,:,:,:] = vx.compute()
+        # vel_xyz[1,:,:,:] = vy.compute()
+        velocity_xyz = delayed(da.nan_to_num)(vel_xyz.T.reshape(-1,3, order = "F").transpose() * u.km/ u.s)
+
+
+        disk_coordinates = delayed(TiltedDisk)(x = disk_coords.x, y = disk_coords.y, z = disk_coords.z,
+                            v_x = velocity_xyz[0,:], v_y = velocity_xyz[1,:], v_z = velocity_xyz[2,:], 
+                            alpha = alpha*u.deg, beta = beta*u.deg, theta = theta*u.deg)
+
+        # Transform to GalacticLSR frame
+        if return_all:
+            galcen_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**galcen_options))
+            lbd_coords_withvel = galcen_coords_withvel.transform_to(coord.GalacticLSR(**LSR_options))
+        else:
+            lbd_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**galcen_options)).transform_to(coord.GalacticLSR(**LSR_options))
+
+        # save Grid creation information for use in creating accurate WCS object associated with SpectralCube Object in future
+        dD = lbd_grid[2,0,0,1] - lbd_grid[2,0,0,0]
+        dB = lbd_grid[1,0,1,1] - lbd_grid[1,0,0,0]
+        dL = lbd_grid[0,1,0,0] - lbd_grid[0,0,0,0]
+        cdelt = np.array([dL.compute(), dB.compute(), dD.compute()])
+
+        print("Computing Coordinates with Disk Velocity information in GalacticLSR Frame:")
+        if visualize:
+            lbd_coords_withvel.visualize(filename = 'LBDCoordsWithVelGraph.svg')
+        with ProgressBar():
+            lbd_coords_withvel = lbd_coords_withvel.compute()
+        print("Computing Disk Density Grid:")
+        if visualize:
+            dens_grid.visualize(filename = 'DensGridGraph.svg')
+        with ProgressBar():
+            dens_grid = dens_grid.swapaxes(0,2).compute()
+
+        pool.close()
+        if return_all:
+            return lbd_coords_withvel, dens_grid.swapaxes(0,2), cdelt, disk_coordinates, \
+                galcen_coords_withvel, bd_grid.swapaxes(0,2), vel_magnitude_grid.swapaxes(0,2)
+                #coordframe,dask array, np array, delayed, delayed, delayed dask array, delayed dask array
+        
+        else:
+            return lbd_coords_withvel, dens_grid.swapaxes(0,2), cdelt
+
     else:
-    	disk_coords = lbd_coords.transform_to(TiltedDisk(alpha = alpha*u.deg, 
-                                                        beta = beta*u.deg, theta = theta*u.deg))
+        # Populate a uniform grid in Longitude-Latitude-Distance space
+        lbd_grid = np.mgrid[L_range[0]:L_range[1]:nx*1j,
+                            B_range[0]:B_range[1]:ny*1j,
+                            D_range[0]:D_range[1]:nz*1j]
+        # Transform grid into a 3 x N array for Longitude, Latitude, Distance axes                    
+        lbd = lbd_grid.T.reshape(-1,3, order = "F").transpose()
+        # Initiate astropy coordinates.Galactic object
+        lbd_coords = coord.Galactic(l = lbd[0,:]*u.deg, b = lbd[1,:]*u.deg, distance = lbd[2,:]*u.kpc)
 
-    # Create standard numpy ndarray of disk_coords and reshape to grid, matching original lbd_grid object	
-    disk_coords_arr = np.array([disk_coords.x.value, disk_coords.y.value, disk_coords.z.value])
-    xyz_grid = disk_coords_arr.T.transpose().reshape(-1,nx,ny,nz)
+        if return_all:
 
-    # initiate partial object to solve for Ellipse Equation
-    partial_bd_solver = partial(bd_solver, xyz=disk_coords_arr, z_sigma_lim = z_sigma_lim, Hz = Hz, 
-                        bd_max = bd_max, el_constant1 = el_constant1, el_constant2 = el_constant2)
-    # Solve Ellipse Equation across multiple threads
-    pool = multiprocessing.Pool()
-    bd_vals = pool.map(partial_bd_solver, range(len(disk_coords.x.value)))
-    pool.close()
-    # Create grid of bd values solved from Ellipse Equation, matching original lbd_grid object
-    bd_grid = np.array(bd_vals).T.transpose().reshape(nx,ny,nz)
+        	# Convert regularized grid points into Galactocentric frame
+        	galcen_coords = lbd_coords.transform_to(coord.Galactocentric(**galcen_options))
+        	disk_coords = galcen_coords.transform_to(TiltedDisk(alpha = alpha*u.deg, 
+                                                            beta = beta*u.deg, theta = theta*u.deg))
+        else:
+        	disk_coords = lbd_coords.transform_to(coord.Galactocentric(**galcen_options)).transform_to(TiltedDisk(alpha = alpha*u.deg, 
+                                                            beta = beta*u.deg, theta = theta*u.deg))
 
-    # Create grid of ad values (semi-major axis) derived from bd values
-    ad_grid = ne.evaluate("bd_grid * (el_constant1 + el_constant2 * bd_grid / bd_max)")
+        # Create standard numpy ndarray of disk_coords and reshape to grid, matching original lbd_grid object	
+        disk_coords_arr = np.array([disk_coords.x.value, disk_coords.y.value, disk_coords.z.value])
+        xyz_grid = disk_coords_arr.T.transpose().reshape(-1,nx,ny,nz)
 
-    # Create grid of density values for the Elliptical Disk, mathcing original lbd_grid object
-    dens_grid = np.zeros_like(bd_grid)
-    z_coor = xyz_grid[2,:,:,:]
-    dens_grid[(np.abs(z_coor)<(z_sigma_lim * Hz)) & (bd_grid<bd_max)] = dens0 * \
-            np.exp(-0.5 * (z_coor[(np.abs(z_coor)<(z_sigma_lim * Hz)) & (bd_grid<bd_max)] / Hz)**2)
+        # initiate partial object to solve for Ellipse Equation
+        partial_bd_solver = partial(bd_solver, xyz=disk_coords_arr, z_sigma_lim = z_sigma_lim, Hz = Hz, 
+                            bd_max = bd_max, el_constant1 = el_constant1, el_constant2 = el_constant2)
+        # Solve Ellipse Equation across multiple threads
+        pool = multiprocessing.Pool()
+        bd_vals = pool.map(partial_bd_solver, range(len(disk_coords.x.value)))
+        pool.close()
+        # Create grid of bd values solved from Ellipse Equation, matching original lbd_grid object
+        bd_grid = np.array(bd_vals).T.transpose().reshape(nx,ny,nz)
 
-    # Solve for velocity magnitude using Angular Momentum and Velcotiy field from Burton & Liszt
-    r_x = xyz_grid[0,:,:,:]
-    r_y = xyz_grid[1,:,:,:]
+        # Create grid of ad values (semi-major axis) derived from bd values
+        ad_grid = ne.evaluate("bd_grid * (el_constant1 + el_constant2 * bd_grid / bd_max)")
 
-    normalizer = ne.evaluate("1 / sqrt((r_x / ad_grid**2)**2 + (r_y / bd_grid**2)**2)")
+        # Create grid of density values for the Elliptical Disk, mathcing original lbd_grid object
+        dens_grid = np.zeros_like(bd_grid)
+        z_coor = xyz_grid[2,:,:,:]
+        dens_grid[(np.abs(z_coor)<(z_sigma_lim * Hz)) & (bd_grid<bd_max)] = dens0 * \
+                    np.exp(-0.5 * (z_coor[(np.abs(z_coor)<(z_sigma_lim * Hz)) & (bd_grid<bd_max)] / Hz)**2)
 
-    xtangent = ne.evaluate("r_y / bd_grid**2 * normalizer")
-    ytangent = ne.evaluate("-r_x / ad_grid**2 * normalizer")
-    # Angular momentum along the disk minor axis
-    Lz_minor_axis = ne.evaluate("0. - bd_grid * vel_0 * (1. - exp(-bd_grid / velocity_factor))")  #r x v
-    vel_magnitude_grid = ne.evaluate("abs(Lz_minor_axis / (r_x * ytangent - r_y * xtangent))")
+        # Solve for velocity magnitude using Angular Momentum and Velcotiy field from Burton & Liszt
+        r_x = xyz_grid[0,:,:,:]
+        r_y = xyz_grid[1,:,:,:]
 
-    # Greate grid containing velocity vectors for orbits
-    vel_xyz = np.zeros_like(xyz_grid)
-    vel_xyz[0,:,:,:] = ne.evaluate("xtangent * vel_magnitude_grid")
-    vel_xyz[1,:,:,:] = ne.evaluate("ytangent * vel_magnitude_grid")
-    np.nan_to_num(vel_xyz)
+        normalizer = ne.evaluate("1 / sqrt((r_x / ad_grid**2)**2 + (r_y / bd_grid**2)**2)")
 
-    velocity_xyz = vel_xyz.T.reshape(-1,3, order = "F").transpose() * u.km/ u.s
+        xtangent = ne.evaluate("r_y / bd_grid**2 * normalizer")
+        ytangent = ne.evaluate("-r_x / ad_grid**2 * normalizer")
+        # Angular momentum along the disk minor axis
+        Lz_minor_axis = ne.evaluate("0. - bd_grid * vel_0 * (1. - exp(-bd_grid / velocity_factor))")  #r x v
+        vel_magnitude_grid = ne.evaluate("abs(Lz_minor_axis / (r_x * ytangent - r_y * xtangent))")
 
-    vel_cartesian = CartesianRepresentation(velocity_xyz)
+        # Greate grid containing velocity vectors for orbits
+        vel_xyz = np.zeros_like(xyz_grid)
+        vel_xyz[0,:,:,:] = ne.evaluate("xtangent * vel_magnitude_grid")
+        vel_xyz[1,:,:,:] = ne.evaluate("ytangent * vel_magnitude_grid")
+        np.nan_to_num(vel_xyz)
 
-    # Create new TiltedDisk object containing all newly calculated velocities
-    disk_coordinates = TiltedDisk(x = disk_coords.x, y = disk_coords.y, z = disk_coords.z,
-                v_x = vel_cartesian.x, v_y = vel_cartesian.y, v_z = vel_cartesian.z, 
-                alpha = alpha*u.deg, beta = beta*u.deg, theta = theta*u.deg)
+        velocity_xyz = vel_xyz.T.reshape(-1,3, order = "F").transpose() * u.km/ u.s
 
-    # Transform to GalacticLSR frame
-    if return_all:
-    	galcen_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**galcen_options))
-    	lbd_coords_withvel = galcen_coords_withvel.transform_to(coord.GalacticLSR(**LSR_options))
-    else:
-    	lbd_coords_withvel = disk_coordinates.transform_to(coord.GalacticLSR(**LSR_options))
+        vel_cartesian = CartesianRepresentation(velocity_xyz)
 
-    # save Grid creation information for use in creating accurate WCS object associated with SpectralCube Object in future
-    dD = lbd_grid[2,0,0,1] - lbd_grid[2,0,0,0]
-    dB = lbd_grid[1,0,1,1] - lbd_grid[1,0,0,0]
-    dL = lbd_grid[0,1,0,0] - lbd_grid[0,0,0,0]
-    cdelt = np.array([dL, dB, dD])
+        # Create new TiltedDisk object containing all newly calculated velocities
+        disk_coordinates = TiltedDisk(x = disk_coords.x, y = disk_coords.y, z = disk_coords.z,
+                    v_x = vel_cartesian.x, v_y = vel_cartesian.y, v_z = vel_cartesian.z, 
+                    alpha = alpha*u.deg, beta = beta*u.deg, theta = theta*u.deg)
 
-    if return_all:
-        return lbd_coords_withvel, np.swapaxes(dens_grid,0,2), cdelt, disk_coordinates, \
-            galcen_coords_withvel, np.swapaxes(bd_grid,0,2), np.swapaxes(vel_magnitude_grid,0,2)
-    else:
-        return lbd_coords_withvel, np.swapaxes(dens_grid,0,2), cdelt
+        # Transform to GalacticLSR frame
+        if return_all:
+        	galcen_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**galcen_options))
+        	lbd_coords_withvel = galcen_coords_withvel.transform_to(coord.GalacticLSR(**LSR_options))
+        else:
+        	lbd_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**galcen_options)).transform_to(coord.GalacticLSR(**LSR_options))
+
+        # save Grid creation information for use in creating accurate WCS object associated with SpectralCube Object in future
+        dD = lbd_grid[2,0,0,1] - lbd_grid[2,0,0,0]
+        dB = lbd_grid[1,0,1,1] - lbd_grid[1,0,0,0]
+        dL = lbd_grid[0,1,0,0] - lbd_grid[0,0,0,0]
+        cdelt = np.array([dL, dB, dD])
 
 
+        if return_all:
+            return lbd_coords_withvel, np.swapaxes(dens_grid,0,2), cdelt, disk_coordinates, \
+                galcen_coords_withvel, np.swapaxes(bd_grid,0,2), np.swapaxes(vel_magnitude_grid,0,2)
+        else:
+            return lbd_coords_withvel, np.swapaxes(dens_grid,0,2), cdelt
 
-def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax, 
-                    vel_resolution, L_range, B_range, species = 'hi', T_gas = 120. *u.K, memmap = False, da_chunks_xyz = 50):
+
+
+def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
+                    vel_resolution, L_range, B_range, species = 'hi', visualize = False,
+                    T_gas = 120. *u.K, memmap = False, da_chunks_xyz = 50, redden = False, 
+                    local_dustmap = None, case = 'B'):
     """
     Creates a Longitude-Latitude-Velocity SpectralCube object of neutral (HI 21cm) or ionized (H-Alpha) gas emission
     Uses output calculated from 'modspectra.cube.EllipticalLBD'
@@ -450,12 +582,13 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
     elif not vmax.unit == u.km/u.s:
     	vmax = vmax.to(u.km / u.s)
 
-    if not isinstance(T_gas, u.Quantity):
-    	T_gas = u.Quantity(T_gas, unit = u.K)
-    	logging.warning("No units specified for T_gas, assuming"
-    			"{}".format(T_gas.unit))
-    elif not T_gas.unit == u.K:
-    	T_gas = T_gas.to(u.K)
+    if species =='hi':
+        if not isinstance(T_gas, u.Quantity):
+            T_gas = u.Quantity(T_gas, unit = u.K)
+            logging.warning("No units specified for T_gas, assuming"
+                 "{}".format(T_gas.unit))
+        elif not T_gas.unit == u.K:
+            T_gas = T_gas.to(u.K)
 
 
 
@@ -482,25 +615,101 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
     dist = cdelt[2]
     if memmap:
         if species == 'hi':
-            density_grid = da.from_array(density_gridin, chunks = (da_chunks_xyz,da_chunks_xyz,da_chunks_xyz)) * \
-                                        33.52 / (T_gas.value * vel_disp.value) * dist * 1000. / 50.
+            density_grid = density_gridin * 33.52 / (T_gas.value * vel_disp.value) * dist * 1000. / 50.
             optical_depth = da.einsum('jkli, jkl->ijkl', gaussian_cells, density_grid).sum(axis = 1)
             result_cube = T_gas * (1  - da.exp(-1.* optical_depth))
+            print("Computing Resulting Emission from Density Structure:")
+            if visualize:
+                result_cube.visualize(filename = 'EmissionCubeGraph.svg')
             with ProgressBar():
-                emission_cube = result_cube.compute() * u.K
+                emission_cube = result_cube.compute()
         if species == 'ha':
-            EM = da.from_array(density_gridin, chunks = (da_chunks_xyz,da_chunks_xyz,da_chunks_xyz)) **2 * dist * 1000.
-            result_cube = da.einsum('jkli, jkl->ijkl', gaussian_cells, EM).sum(axis = 1)
+            EM = delayed(density_gridin *density_gridin * dist * 1000. / dv.value)
+            if redden:
+                from extinction import fm07 as extinction_law
+                if local_dustmap:
+                    bayestar = local_dustmap
+                else:
+                    from dustmaps.bayestar import BayestarWebQuery
+                    bayestar = BayestarWebQuery(version='bayestar2017')
+
+                def trans(ell, Av = None, wave = None):
+                    res = 10**(-0.4*extinction_law(wave,Av[ell]))
+                    return res[0]
+
+                def bayestar_it(ell, coords= None, mode = 'median'):
+                    return 2.742* bayestar(coord.SkyCoord(coords[ell]), mode = mode)
+
+                pool = multiprocessing.Pool()
+
+                if local_dustmap:
+                    Av = 2.742 * bayestar(coord.SkyCoord(lbd_coords_withvel), mode = 'median')
+                    print("computed Av")
+                else:
+                    partial_bayestar = delayed(partial)(bayestar_it, coords = lbd_coords_withvel)
+                    Av = delayed(pool.map)(partial_bayestar, range(nx*ny*nz))
+
+                partial_trans = partial(trans, Av = Av, wave = np.array([6562.8]))
+                trans = np.array([*map(partial_trans, range(nx*ny*nz))])
+                trans_arr = trans#delayed(da.from_array)(trans, chunks = -1)
+                trans_grid = np.swapaxes(trans_arr.T.transpose().reshape(nx,ny,nz), 0,2)
+                EM = delayed(EM * trans_grid)
+
+            result_cube = delayed(da.einsum)('jkli, jkl->ijkl', gaussian_cells, EM)
+            result_cube = delayed(result_cube.sum(axis=1))
+            print("Computing Resulting Emission from Density Structure:")
+            if visualize:
+                result_cube.visualize(filename = 'EmissionCubeGraph.svg')
             with ProgressBar():
-                emission_cube = result_cube.compute() * u.cm**(-6) * u.pc
+                emission_cube = result_cube.compute() * u.cm**(-6) * u.pc / u.km * u.s
+
+            if redden:
+                pool.close()
     else:
         if species == 'hi':
             density_grid = ne.evaluate("density_gridin *33.52 / (T_gas * vel_disp)* dist *1000. / 50.")
             optical_depth = np.einsum('jkli, jkl->ijkl', gaussian_cells, density_grid).sum(axis = 1)
             emission_cube = ne.evaluate("T_gas * (1 - exp(-1.* optical_depth))") * u.K
         if species =='ha':
+            if case == 'B': #Recombination case B
+                b_constant = -0.942 - 0.031 * np.log(T_gas/10.**4)
+                a_0_constant = 0.1442 * u.R / u.km * u.s
+            if case == 'A': #Recombination case A
+                b_constant = -1.009
+                a_0_constant = 0.0938 * u.R / u.km * u.s
             EM = ne.evaluate("density_gridin**2 * dist * 1000.")
-            emission_cube = np.einsum('jkli, jkl->ijkl', gaussian_cells, EM).sum(axis = 1)
+            if redden:
+                from extinction import fm07 as extinction_law
+                if local_dustmap:
+                    bayestar = local_dustmap
+                else:
+                    from dustmaps.bayestar import BayestarWebQuery
+                    bayestar = BayestarWebQuery(version='bayestar2017')
+
+                def trans(ell, Av = None, wave = None):
+                    res = 10**(-0.4*extinction_law(wave,Av[ell]))
+                    return res[0]
+
+                def bayestar_it(ell, coords= None, mode = 'median'):
+                    return 2.742* bayestar(coord.SkyCoord(coords[ell]), mode = mode)
+
+                pool = multiprocessing.Pool()
+
+                if local_dustmap:
+                    Av = 2.742 * bayestar(coord.SkyCoord(lbd_coords_withvel), mode = 'median')
+                    print("computed Av")
+                else:
+                    partial_bayestar = delayed(partial)(bayestar_it, coords = lbd_coords_withvel)
+                    Av = delayed(pool.map)(partial_bayestar, range(nx*ny*nz))
+
+                partial_trans = partial(trans, Av = Av, wave = np.array([6562.8]))
+                trans = np.array([*map(partial_trans, range(nx*ny*nz))])
+                trans_arr = trans#delayed(da.from_array)(trans, chunks = -1)
+                trans_grid = np.swapaxes(trans_arr.T.transpose().reshape(nx,ny,nz), 0,2)
+                EM *= trans_grid
+
+            emission_cube = np.einsum('jkli, jkl->ijkl', gaussian_cells, 
+                                        a_0_constant * EM/ vel_disp.value * (T_gas/10.**4)**(b_constant)).sum(axis = 1)
         
     # Create WCS Axes
     DBL_wcs = wcs.WCS(naxis = 3)
@@ -595,6 +804,8 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
     return_all: 'bool', optional, must be keyword
         if True, will return all output components
         used for diagnosing issues
+        most information can be determined / converted from initial 3 output elements
+        only other useful bit is bd_grid - may incorporate into default output in future
     BL82: 'bool', optional, must be keyword
         if True, will create a default cube with the exact parameters of Burton & Liszt 1982
     defaults: 'bool'
@@ -603,6 +814,32 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         if True, will create cube using provided parameters
         ***Important*** must be True to create a cube, otherwise will assume it is 
             loading/initiating cube from provided data
+    redden: 'bool'
+        if True, will apply extinction corrections (for species = 'ha')
+        will WebQuery from (Green et al. 2018) 3D dustmaps unless...
+    local_dustmap: 'dustmaps.__'
+        if provided, will use this function to query the provided dustmap. 
+        Used to do a local query of the 3D dustmaps
+    memmap: 'bool'
+        if true, will create cube using memory mapping via dask 
+        Note: Currently does not work properly with species = 'ha'
+    da_chunks_xyz: 'number', optional, must be keyword
+        if memmap, this sets the default chunksize to be used for dask arrays
+    LBD_output_in: 'Dictionary', optional, must be keyword
+        provide LBD output information to save in EmissionCube class 
+        only used if EmissionCube is from a model created by this package
+    LBD_output_in: 'list, str', optional, must be keyword
+        provide keys tot he entries of LBD_output_in 
+        only used if EmissionCube is from a model created by this package
+    model_header: 'fits.header'
+        Provide header to gather model parameters and information
+        only used if EmissionCube is from a model created by this package
+    visualize: 'bool'
+        if True, will output and save graphs from delayed dask operations to 
+        show steps involved in compution
+    DK18: 'bool'
+        if true, will will create default cube with parameters of (Krishnarao et al. 2018)
+        Same as BL82, but updated to modern distance estimates
 
     Returns
     -------
@@ -617,11 +854,13 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                  resolution = None, vel_resolution = None, 
                  L_range = None, B_range = None, D_range = None, 
                  alpha = None, beta = None, theta = None, 
-                 bd_max = None, Hz = None, z_sigma_lim = None, dens0 = None,
+                 bd_max = None, Hz = None, z_sigma_lim = None, dens0 = None, redden = False,
                  velocity_factor = None, vel_0 = None, el_constant1 = None, el_constant2 = None, 
-                 vel_disp = None, vmin = None, vmax = None, 
+                 vel_disp = None, vmin = None, vmax = None, visualize = False,
                  species = None, T_gas = None, LSR_options = {}, galcen_options = {}, return_all = False, 
-                 BL82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None, **kwargs):
+                 BL82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None,
+                 LBD_output_in = None, LBD_output_keys_in = None, model_header = None, 
+                 local_dustmap = None, DK18 = False, case = None, **kwargs):
 
         if not meta:
             meta = {}
@@ -641,6 +880,23 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             alpha = 13.5 * u.deg
             beta = 20. * u.deg
             theta = 48.5 * u.deg
+
+        if DK18:
+            galcen_distance_factor = 8.127 / 10.
+            el_constant1 = 1.6
+            el_constant2 = 1.5
+            T_gas = 120. * u.K
+            bd_max = 0.6 * u.kpc * galcen_distance_factor
+            Hz = 0.1 * u.kpc * galcen_distance_factor
+            z_sigma_lim = 3
+            dens0 = 0.33 * 1/u.cm/u.cm/u.cm
+            vel_0 = 360.*u.km/u.s
+            velocity_factor = 0.1
+            vel_disp = 9. * u.km/u.s
+            alpha = 13.5 * u.deg
+            beta = 20. * u.deg
+            theta = 48.5 * u.deg
+
 
         # Define default parameters if needed
         if defaults:
@@ -787,8 +1043,9 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                                                 velocity_factor, vel_0.value, el_constant1, el_constant2, 
                                                 alpha.value, beta.value, theta.value, 
                                                 L_range.value, B_range.value, D_range.value, 
+                                                memmap = memmap, da_chunks_xyz = da_chunks_xyz, visualize = visualize,
                                                 LSR_options = LSR_options, galcen_options = galcen_options, 
-                                                return_all = return_all, **kwargs)
+                                                return_all = return_all, species = species, **kwargs)
 
             if return_all:
                 self.LBD_output_keys = ['lbd_coords', 'disk_density', 'cdelt', 
@@ -798,26 +1055,100 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                 self.LBD_output_keys = ['lbd_coords', 'disk_density', 'cdelt']
 
             # Create LBV Cube
+
             data, wcs = EllipticalLBV(self.LBD_output[0], self.LBD_output[1], 
                                 self.LBD_output[2], vel_disp, vmin, vmax, 
-                                vel_resolution, L_range.value, B_range.value, 
-                                species = species, T_gas = T_gas, memmap = memmap, da_chunks_xyz = da_chunks_xyz)
+                                vel_resolution, L_range.value, B_range.value, visualize = visualize, redden = redden,
+                                species = species, T_gas = T_gas, memmap = memmap, da_chunks_xyz = da_chunks_xyz, 
+                                local_dustmap = local_dustmap, case = case)
+
+            if memmap:
+                print('Setting up Data Cube')
+                with ProgressBar():
+                    data = data.compute()
 
             # Metadata with unit info
-            meta = {}
+            if not isinstance(data, u.Quantity):
+                if species == 'hi':
+                    data = data * u.K
+                elif species == 'ha':
+                    data = data * u.R / u.km * u.s
+
             meta['BUNIT'] = '{}'.format(data.unit)
+
+
+
+
+
+
+
+            
+
         
         # Initialize Spectral Cube Object
         super().__init__(data = data, wcs = wcs, mask=mask, meta=meta, fill_value=fill_value,
                          header=header, allow_huge_operations=allow_huge_operations, beam=beam,
                          wcs_tolerance=wcs_tolerance, **kwargs)
+        if LBD_output_in:
+            self.LBD_output = LBD_output_in
+        if LBD_output_keys_in:
+            self.LBD_output_keys = LBD_output_keys_in
+        if model_header:
+            self.bd_max = model_header['BD_MAX'] * u.Unit(model_header['BD_MAX_U'])
+            self.Hz = model_header['HZ'] * u.Unit(model_header['HZ_U'])
+            self.z_sigma_lim = model_header['Z_SIGMA']
+            self.dens0 = model_header['DENS0'] * u.Unit(model_header['DENS0_U'])
+            self.vel_0 = model_header['VEL_0'] * u.Unit(model_header['VEL_0_U'])
+            self.velocity_factor = model_header['VEL_FACT']
+            self.vel_disp = model_header['VEL_DISP'] * u.Unit(model_header['VELDISPU'])
+            self.el_constant1 = model_header['EL_CONS1']
+            self.el_constant2 = model_header['EL_CONS2']
+            self.T_gas = model_header['T_GAS'] * u.Unit(model_header['T_GAS_U'])
+            self.alpha = model_header['ALPHA'] * u.Unit(model_header['ALPHA_U'])
+            self.alpha = self.alpha.decompose().scale * u.rad
+            self.alpha = self.alpha.to(u.deg)
+            self.beta = model_header['BETA'] * u.Unit(model_header['BETA_U'])
+            self.beta = self.beta.decompose().scale * u.rad
+            self.beta = self.beta.to(u.deg)
+            self.theta = model_header['THETA'] * u.Unit(model_header['THETA_U'])
+            self.theta = self.theta.decompose().scale * u.rad
+            self.theta = self.theta.to(u.deg)
+            self.resolution = model_header['RESO']
+            self.vel_resolution = model_header['VEL_RESO']
+            self.L_range = [model_header['L_RMIN'],model_header['L_RMAX']] * u.Unit(model_header['L_RANGEU'])
+            self.B_range = [model_header['B_RMIN'],model_header['B_RMAX']] * u.Unit(model_header['B_RANGEU'])
+            self.D_range = [model_header['D_RMIN'],model_header['D_RMAX']] * u.Unit(model_header['D_RANGEU'])
+            self.species = model_header['SPECIES']
+            self.vmin = model_header['VMIN'] * u.Unit(model_header['VMIN_U'])
+            self.vmax = model_header['VMAX'] * u.Unit(model_header['VMAX_U'])
+
+
         
 
 
 
 
     @classmethod
-    def read(cls, file):
+    def read(cls, file, model = False):
+        if model:
+            hdulist = fits.open(file)
+            v_bary_in = CartesianDifferential(hdulist[1].data["v_bary"] * u.km/u.s)
+            LBD_output_in = [coord.GalacticLSR(l = hdulist[1].data["lbd"][0,:]*u.deg, b = hdulist[1].data["lbd"][1,:]*u.deg, 
+                                                distance = hdulist[1].data["lbd"][2,:]*u.kpc, 
+                                                pm_l_cosb = hdulist[1].data["v"][0,:]*u.mas/u.yr, 
+                                                pm_b = hdulist[1].data["v"][1,:]*u.mas/u.yr, 
+                                                radial_velocity = hdulist[1].data["v"][2,:]*u.km/u.s,
+                                                v_bary = v_bary_in),
+                            hdulist[1].data["disk_density_grid"],
+                            hdulist[1].data["LBD_cdelt"]]
+            LBD_output_keys_in = ['lbd_coords', 'disk_density', 'cdelt']
+            model_header = hdulist[1].header
+            hdulist.close()
+        else:
+            model_header = None
+            LBD_output_keys_in = None
+            LBD_output_in = None
+
         cube = super().read(file)
         data = cube.unmasked_data[:]
         wcs = cube.wcs
@@ -827,7 +1158,90 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         if 'BUNIT' in header:
             meta['BUNIT'] = header['BUNIT']
         
-        return cls(data = data, wcs = wcs, meta = meta, header = header)
+        return cls(data = data, wcs = wcs, meta = meta, header = header, 
+            LBD_output_in = LBD_output_in, LBD_output_keys_in = LBD_output_keys_in, 
+            model_header = model_header)
+
+    def write(self, filename, overwrite = False, format = None, model = False):
+        if model:
+            hdulist = self.hdulist
+            if (hasattr(self, 'LBD_output') & len(hdulist) == 1):
+                length = self.resolution[0]*self.resolution[1]*self.resolution[2]
+                c1 = fits.Column(name='lbd', unit='deg,deg,kpc', format = '{}D'.format(length))
+                c2 = fits.Column(name='v', unit='mas/yr,mas/yr,km/s', format = '{}D'.format(length))
+                c3 = fits.Column(name='disk_density_grid', unit='cm-3', 
+                                    format = '{}D'.format(length), dim = '({},{},{})'.format(self.resolution[0],
+                                                                                            self.resolution[1], 
+                                                                                            self.resolution[2]))
+                c4 = fits.Column(name='LBD_cdelt', array=self.LBD_output[2], unit='deg,deg,kpc', format = 'D')
+                c5 = fits.Column(name='v_bary', array=[self.LBD_output[0].v_bary.d_x.value, 
+                                                        self.LBD_output[0].v_bary.d_y.value, 
+                                                        self.LBD_output[0].v_bary.d_z.value], 
+                                                        format = 'D', 
+                                                        unit = '{}'.format(self.LBD_output[0].v_bary.d_z.unit))
+                table = fits.BinTableHDU.from_columns([c1,c2,c3,c4,c5])
+                table.data["lbd"][0,:] = self.LBD_output[0].l
+                table.data["lbd"][1,:] = self.LBD_output[0].b
+                table.data["lbd"][2,:] = self.LBD_output[0].distance
+                table.data["v"][0,:] = self.LBD_output[0].pm_l_cosb
+                table.data["v"][1,:]  = self.LBD_output[0].pm_b
+                table.data["v"][2,:]  = self.LBD_output[0].radial_velocity
+                table.data["disk_density_grid"] = self.LBD_output[1]
+                hdulist.append(table)
+
+                hdulist[1].header['BD_MAX'] = '{}'.format(self.bd_max.value)
+                hdulist[1].header['BD_MAX_U'] = '{}'.format(self.bd_max.unit)
+                hdulist[1].header['HZ'] = '{}'.format(self.Hz.value)
+                hdulist[1].header['HZ_U'] = '{}'.format(self.Hz.unit)
+                hdulist[1].header['Z_SIGMA'] = '{}'.format(self.z_sigma_lim)
+                hdulist[1].header['DENS0'] = '{}'.format(self.dens0.value)
+                hdulist[1].header['DENS0_U'] = '{}'.format(self.dens0.unit)
+                hdulist[1].header['VEL_0'] = '{}'.format(self.vel_0.value)
+                hdulist[1].header['VEL_0_U'] = '{}'.format(self.vel_0.unit)
+                hdulist[1].header['VEL_FACT'] = '{}'.format(self.velocity_factor)
+                hdulist[1].header['VEL_DISP'] = '{}'.format(self.vel_disp.value)
+                hdulist[1].header['VELDISPU'] = '{}'.format(self.vel_disp.unit)
+                hdulist[1].header['EL_CONS1'] = '{}'.format(self.el_constant1)
+                hdulist[1].header['EL_CONS2'] = '{}'.format(self.el_constant2)
+                hdulist[1].header['T_GAS'] = '{}'.format(self.T_gas.value)
+                hdulist[1].header['T_GAS_U'] = '{}'.format(self.T_gas.unit)
+                hdulist[1].header['ALPHA'] = '{}'.format(self.alpha.value)
+                hdulist[1].header['ALPHA_U'] = '{}'.format(self.alpha.unit)
+                hdulist[1].header['BETA'] = '{}'.format(self.beta.value)
+                hdulist[1].header['BETA_U'] = '{}'.format(self.beta.unit)
+                hdulist[1].header['THETA'] = '{}'.format(self.theta.value)
+                hdulist[1].header['THETA_U'] = '{}'.format(self.theta.unit)
+                hdulist[1].header['RESO'] = '{}'.format(self.resolution)
+                hdulist[1].header['VEL_RESO'] = '{}'.format(self.vel_resolution)
+                hdulist[1].header['L_RMIN'] = self.L_range[0].value
+                hdulist[1].header['L_RMAX'] = self.L_range[1].value
+                hdulist[1].header['L_RANGEU'] = '{}'.format(self.L_range.unit)
+                hdulist[1].header['B_RMIN'] = self.B_range[0].value
+                hdulist[1].header['B_RMAX'] = self.B_range[1].value
+                hdulist[1].header['B_RANGEU'] = '{}'.format(self.B_range.unit)
+                hdulist[1].header['D_RMIN'] = self.L_range[0].value
+                hdulist[1].header['D_RMAX'] = self.L_range[1].value
+                hdulist[1].header['D_RANGEU'] = '{}'.format(self.D_range.unit)
+                hdulist[1].header['SPECIES'] = '{}'.format(self.species)
+                hdulist[1].header['VMIN'] = self.vmin.value
+                hdulist[1].header['VMIN_U'] = '{}'.format(self.vmin.unit)
+                hdulist[1].header['VMAX'] = self.vmax.value
+                hdulist[1].header['VMAX_U'] = '{}'.format(self.vmax.unit)
+
+
+            now = datetime.datetime.strftime(datetime.datetime.now(),
+                                             "%Y/%m/%d-%H:%M:%S")
+            hdulist[0].header.add_history("Written by modspectra on "
+                                          "{date}".format(date=now))
+            try:
+                hdulist.writeto(filename, overwrite=overwrite)
+            except TypeError:
+                hdulist.writeto(filename, clobber=overwrite)
+        else:
+            super().write(self, filename, overwrite = overwrite, format = format)
+
+
+
 
         
 
