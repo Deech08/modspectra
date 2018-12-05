@@ -164,6 +164,8 @@ def bd_equation(bd, x_coord, y_coord):
     	x-coordinate in ellipse
     y_coord: 'number, ndarray'
     	y-coordinate in ellipse 
+
+    I think this is a useless equation... consider removing entirely!
     """
     a = x_coord
     result = x_coord**2 / a**2 + y_coord**2 / bd**2 - 1.
@@ -204,13 +206,10 @@ def bd_solver(ell, xyz, z_sigma_lim, Hz, bd_max, el_constant1, el_constant2):
     elif np.abs(x_coord) > bd_max * (el_constant1 + el_constant2):
         res = bd_max+1.
     elif x_coord == 0.:
-        if y_coord == 0.:
-            res = 0
-        else:
-            res = y_coord
+        res = y_coord
     elif y_coord == 0.:
-        res = scipy.optimize.brenth(bd_equation, 0.000001, 1., 
-                    args = (x_coord, y_coord))
+        # y_coord = ad - > can directly solve for bd
+        res = (np.sqrt(bd_max) * np.sqrt(4.* np.abs(x_coord) * el_constant2 + bd_max * el_constant1**2) - bd_max * el_constant1) / (2.* el_constant2)
     else:
         res = scipy.optimize.brenth(ellipse_equation, 0.000001, 1., 
                     args = (el_constant1, el_constant2,bd_max, x_coord, y_coord))
@@ -222,7 +221,7 @@ def bd_solver(ell, xyz, z_sigma_lim, Hz, bd_max, el_constant1, el_constant2):
 def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
                    velocity_factor, vel_0, el_constant1, el_constant2,
                    alpha, beta, theta, L_range, B_range, D_range, species = 'hi',
-                   LSR_options={}, galcen_options = {}, visualize = False,
+                   LSR_options={}, galcen_options = {}, visualize = False, flaring = False,
                    memmap = False, da_chunks_xyz = 50, return_all = False, **kwargs):
     """
     Creates kinematic disk following Elliptical Orbits of the from from Burton & Liszt (1982)
@@ -339,16 +338,25 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
         # Create grid of density values for the Elliptical Disk, mathcing original lbd_grid object
         #print("Computing grid z-coordinates in Disk Frame:")
         #with ProgressBar():
-        z_coor = xyz_grid[2,:,:,:]#.compute() #Delayed Dask Array of z coordinate values
-        dens_grid = da.from_array(np.zeros((nx,ny,nz)),chunks = da_chunks_xyz)
+        z_coor = xyz_grid[2,:,:,:].compute() #Delayed Dask Array of z coordinate values
 
-        def define_density_grid(density, z,z_sigma, bd, bdmax, H, density0):
-            density[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] = density0 * \
-                    np.exp(-0.5 * (z[(np.abs(z)<(z_sigma * H)) & (bd<bdmax)] / H)**2)
+        if flaring == False:
+            def define_density_grid(z,z_sigma, bd, bdmax, H, density0):
+                #density[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] = density0 * \
+                        #np.exp(-0.5 * (z[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] / H)**2)
+                outside = (z > z_sigma*H) | (bd > bdmax)
+                density = density0 * np.exp(-0.5 * (z / H)**2)
+                density[outside] = 0.0
+                return density
+        else:
+            def define_density_grid(z, z_sigma, bd, bdmax, H, density0):
+                outside = (bd > bdmax)
+                H_val = H + H * (bd/bdmax * flaring)
+                density = density0 * np.exp(-0.5 * (z / H_val)**2)
+                density[outside] = 0.0
+                return density
 
-            return density
-
-        dens_grid = delayed(define_density_grid)(dens_grid, z_coor, z_sigma_lim, bd_grid, 
+        dens_grid = delayed(define_density_grid)(z_coor, z_sigma_lim, bd_grid, 
                                                 bd_max, Hz, dens0)
 
 
@@ -409,16 +417,18 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
         if visualize:
             dens_grid.visualize(filename = 'DensGridGraph.svg')
         with ProgressBar():
-            dens_grid = dens_grid.swapaxes(0,2).compute()
+            dens_grid = dens_grid.compute()
+            bd_grid = bd_grid.compute()
+        # dens_grid[(bd_grid > bd_max) | (np.abs(z_coor) >= z_sigma_lim * Hz)] = 0.0
 
         pool.close()
         if return_all:
-            return lbd_coords_withvel, dens_grid.swapaxes(0,2), cdelt, disk_coordinates, \
-                galcen_coords_withvel, bd_grid.swapaxes(0,2), vel_magnitude_grid.swapaxes(0,2)
+            return lbd_coords_withvel, np.swapaxes(dens_grid,0,2), cdelt, disk_coordinates, \
+                galcen_coords_withvel, np.swapaxes(bd_grid,0,2), vel_magnitude_grid.swapaxes(0,2)
                 #coordframe,dask array, np array, delayed, delayed, delayed dask array, delayed dask array
         
         else:
-            return lbd_coords_withvel, dens_grid.swapaxes(0,2), cdelt
+            return lbd_coords_withvel, np.swapaxes(dens_grid,0,2), cdelt
 
     else:
         # Populate a uniform grid in Longitude-Latitude-Distance space
@@ -458,10 +468,26 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
         ad_grid = ne.evaluate("bd_grid * (el_constant1 + el_constant2 * bd_grid / bd_max)")
 
         # Create grid of density values for the Elliptical Disk, mathcing original lbd_grid object
-        dens_grid = np.zeros_like(bd_grid)
+        if flaring == False:
+            def define_density_grid(z,z_sigma, bd, bdmax, H, density0):
+                #density[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] = density0 * \
+                        #np.exp(-0.5 * (z[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] / H)**2)
+                outside = (z > z_sigma) | (bd > bdmax)
+                density = ne.evaluate("density0 * exp(-0.5 * (z / H)**2)")
+                density[outside] = 0.0
+                return density
+        else:
+            def define_density_grid(z, z_sigma, bd, bdmax, H, density0):
+                outside = (z > z_sigma) | (bd > bdmax)
+                H_val = H + H * (bd/bdmax * flaring)
+                density = ne.evaluate("density0 * exp(-0.5 * (z / H_val)**2)")
+                density[outside] = 0.0
+                return density
+
         z_coor = xyz_grid[2,:,:,:]
-        dens_grid[(np.abs(z_coor)<(z_sigma_lim * Hz)) & (bd_grid<bd_max)] = dens0 * \
-                    np.exp(-0.5 * (z_coor[(np.abs(z_coor)<(z_sigma_lim * Hz)) & (bd_grid<bd_max)] / Hz)**2)
+        dens_grid = define_density_grid(z_coor, z_sigma_lim, bd_grid, bd_max, Hz, dens0)
+        # dens_grid[(np.abs(z_coor)<(z_sigma_lim * Hz)) & (bd_grid<=bd_max)] = dens0 * \
+        #             np.exp(-0.5 * (z_coor[(np.abs(z_coor)<(z_sigma_lim * Hz)) & (bd_grid<=bd_max)] / Hz)**2)
 
         # Solve for velocity magnitude using Angular Momentum and Velcotiy field from Burton & Liszt
         r_x = xyz_grid[0,:,:,:]
@@ -622,7 +648,7 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
             if visualize:
                 result_cube.visualize(filename = 'EmissionCubeGraph.svg')
             with ProgressBar():
-                emission_cube = result_cube.compute()
+                emission_cube = delayed(result_cube.compute())
         if species == 'ha':
             EM = delayed(density_gridin *density_gridin * dist * 1000. / dv.value)
             if redden:
@@ -633,9 +659,10 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
                     from dustmaps.bayestar import BayestarWebQuery
                     bayestar = BayestarWebQuery(version='bayestar2017')
 
-                def trans(ell, Av = None, wave = None):
-                    res = 10**(-0.4*extinction_law(wave,Av[ell]))
-                    return res[0]
+                def trans(Av = None, wave = None):
+                    Av_to_Awave = extinction_law(wave,1.)
+                    res = 10**(-0.4*(Av * Av_to_Awave))
+                    return res
 
                 def bayestar_it(ell, coords= None, mode = 'median'):
                     return 2.742* bayestar(coord.SkyCoord(coords[ell]), mode = mode)
@@ -649,9 +676,7 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
                     partial_bayestar = delayed(partial)(bayestar_it, coords = lbd_coords_withvel)
                     Av = delayed(pool.map)(partial_bayestar, range(nx*ny*nz))
 
-                partial_trans = partial(trans, Av = Av, wave = np.array([6562.8]))
-                trans = np.array([*map(partial_trans, range(nx*ny*nz))])
-                trans_arr = trans#delayed(da.from_array)(trans, chunks = -1)
+                trans_arr = trans(Av = Av, wave = np.array([6562.8]))
                 trans_grid = np.swapaxes(trans_arr.T.transpose().reshape(nx,ny,nz), 0,2)
                 EM = delayed(EM * trans_grid)
 
@@ -686,9 +711,10 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
                     from dustmaps.bayestar import BayestarWebQuery
                     bayestar = BayestarWebQuery(version='bayestar2017')
 
-                def trans(ell, Av = None, wave = None):
-                    res = 10**(-0.4*extinction_law(wave,Av[ell]))
-                    return res[0]
+                def trans(Av = None, wave = None):
+                    Av_to_Awave = extinction_law(wave,1.)
+                    res = 10**(-0.4*(Av * Av_to_Awave))
+                    return res
 
                 def bayestar_it(ell, coords= None, mode = 'median'):
                     return 2.742* bayestar(coord.SkyCoord(coords[ell]), mode = mode)
@@ -702,9 +728,7 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
                     partial_bayestar = delayed(partial)(bayestar_it, coords = lbd_coords_withvel)
                     Av = delayed(pool.map)(partial_bayestar, range(nx*ny*nz))
 
-                partial_trans = partial(trans, Av = Av, wave = np.array([6562.8]))
-                trans = np.array([*map(partial_trans, range(nx*ny*nz))])
-                trans_arr = trans#delayed(da.from_array)(trans, chunks = -1)
+                trans_arr = trans(Av = Av, wave = np.array([6562.8]))
                 trans_grid = np.swapaxes(trans_arr.T.transpose().reshape(nx,ny,nz), 0,2)
                 EM *= trans_grid
 
@@ -856,7 +880,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                  alpha = None, beta = None, theta = None, 
                  bd_max = None, Hz = None, z_sigma_lim = None, dens0 = None, redden = False,
                  velocity_factor = None, vel_0 = None, el_constant1 = None, el_constant2 = None, 
-                 vel_disp = None, vmin = None, vmax = None, visualize = False,
+                 vel_disp = None, vmin = None, vmax = None, visualize = False, flaring = False,
                  species = None, T_gas = None, LSR_options = {}, galcen_options = {}, return_all = False, 
                  BL82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None,
                  LBD_output_in = None, LBD_output_keys_in = None, model_header = None, 
@@ -1044,7 +1068,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                                                 alpha.value, beta.value, theta.value, 
                                                 L_range.value, B_range.value, D_range.value, 
                                                 memmap = memmap, da_chunks_xyz = da_chunks_xyz, visualize = visualize,
-                                                LSR_options = LSR_options, galcen_options = galcen_options, 
+                                                LSR_options = LSR_options, galcen_options = galcen_options, flaring = flaring,
                                                 return_all = return_all, species = species, **kwargs)
 
             if return_all:
