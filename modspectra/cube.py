@@ -221,7 +221,8 @@ def bd_solver(ell, xyz, z_sigma_lim, Hz, bd_max, el_constant1, el_constant2):
 def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
                    velocity_factor, vel_0, el_constant1, el_constant2,
                    alpha, beta, theta, L_range, B_range, D_range, species = 'hi',
-                   LSR_options={}, galcen_options = {}, visualize = False, flaring = False,
+                   LSR_options={}, galcen_options = {}, visualize = False, 
+                   flaring = False, flaring_radial = False, volume = False, min_bd = None,
                    memmap = False, da_chunks_xyz = 50, return_all = False, **kwargs):
     """
     Creates kinematic disk following Elliptical Orbits of the from from Burton & Liszt (1982)
@@ -340,24 +341,46 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
         #with ProgressBar():
         z_coor = xyz_grid[2,:,:,:].compute() #Delayed Dask Array of z coordinate values
 
-        if flaring == False:
-            def define_density_grid(z,z_sigma, bd, bdmax, H, density0):
+        if (flaring == False) & (flaring_radial == False):
+            def define_density_grid(z,z_sigma, bd, bdmax, H, density0, min_bd = min_bd):
                 #density[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] = density0 * \
                         #np.exp(-0.5 * (z[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] / H)**2)
                 outside = (z > z_sigma*H) | (bd > bdmax)
+                if min_bd != None:
+                	outside |= bd < min_bd
                 density = density0 * np.exp(-0.5 * (z / H)**2)
                 density[outside] = 0.0
                 return density
-        else:
-            def define_density_grid(z, z_sigma, bd, bdmax, H, density0):
+            dens_grid = delayed(define_density_grid)(z_coor, z_sigma_lim, bd_grid, 
+                                                bd_max, Hz, dens0)
+        elif flaring_radial == False:
+            def define_density_grid(z, z_sigma, bd, bdmax, H, density0, min_bd = min_bd):
                 outside = (bd > bdmax)
-                H_val = H + H * (bd/bdmax * flaring)
-                density = density0 * np.exp(-0.5 * (z / H_val)**2)
+                if min_bd != None:
+                	outside |= bd < min_bd
+                slope = H * (flaring - 1.) / bdmax
+                H_val = slope * bd + H
+                density = density0 * np.exp(-0.5 * (z / H_val)**2) / (H_val / H)
                 density[outside] = 0.0
                 return density
-
-        dens_grid = delayed(define_density_grid)(z_coor, z_sigma_lim, bd_grid, 
+            dens_grid = delayed(define_density_grid)(z_coor, z_sigma_lim, bd_grid, 
                                                 bd_max, Hz, dens0)
+        else:
+            print('computing Disk r-coordinate')
+            with ProgressBar():
+                r_coor = delayed(np.sqrt)(xyz_grid[0,:,:,:]**2 + xyz_grid[1,:,:,:]**2).compute()
+            def define_density_grid(z, z_sigma, bd, bdmax, H, density0, radial_coordinate, min_bd = min_bd):
+                outside = (bd > bdmax)
+                if min_bd != None:
+                	outside |= bd < min_bd
+                admax = bdmax * (el_constant1 + el_constant2)
+                slope = H * (flaring - 1.) / admax
+                H_val = slope * r_coor + H
+                density = density0 * np.exp(-0.5 * (z / H_val)**2) / (H_val / H)
+                density[outside] = 0.0
+                return density
+            dens_grid = delayed(define_density_grid)(z_coor, z_sigma_lim, bd_grid, 
+                                                bd_max, Hz, dens0, r_coor)
 
 
         r_x = xyz_grid[0,:,:,:] #Delayed dask array
@@ -418,6 +441,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
             dens_grid.visualize(filename = 'DensGridGraph.svg')
         with ProgressBar():
             dens_grid = dens_grid.compute()
+            print("Computing Ellipse Parameters")
             bd_grid = bd_grid.compute()
         # dens_grid[(bd_grid > bd_max) | (np.abs(z_coor) >= z_sigma_lim * Hz)] = 0.0
 
@@ -541,7 +565,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
                     vel_resolution, L_range, B_range, species = 'hi', visualize = False,
                     T_gas = 120. *u.K, memmap = False, da_chunks_xyz = 50, redden = False, 
-                    local_dustmap = None, case = 'B'):
+                    local_dustmap = False, case = 'B'):
     """
     Creates a Longitude-Latitude-Velocity SpectralCube object of neutral (HI 21cm) or ionized (H-Alpha) gas emission
     Uses output calculated from 'modspectra.cube.EllipticalLBD'
@@ -608,13 +632,12 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
     elif not vmax.unit == u.km/u.s:
     	vmax = vmax.to(u.km / u.s)
 
-    if species =='hi':
-        if not isinstance(T_gas, u.Quantity):
-            T_gas = u.Quantity(T_gas, unit = u.K)
-            logging.warning("No units specified for T_gas, assuming"
-                 "{}".format(T_gas.unit))
-        elif not T_gas.unit == u.K:
-            T_gas = T_gas.to(u.K)
+    if not isinstance(T_gas, u.Quantity):
+        T_gas = u.Quantity(T_gas, unit = u.K)
+        logging.warning("No units specified for T_gas, assuming"
+             "{}".format(T_gas.unit))
+    elif not T_gas.unit == u.K:
+        T_gas = T_gas.to(u.K)
 
 
 
@@ -650,46 +673,45 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
             with ProgressBar():
                 emission_cube = delayed(result_cube.compute())
         if species == 'ha':
-            EM = delayed(density_gridin *density_gridin * dist * 1000. / dv.value)
+            if case == 'B': #Recombination case B
+                b_constant = -0.942 - 0.031 * np.log(T_gas.value/10.**4)
+                a_0_constant = 0.1442 * u.R / u.km * u.s
+            if case == 'A': #Recombination case A
+                b_constant = -1.009
+                a_0_constant = 0.0938 * u.R / u.km * u.s
+            EM = da.from_array(density_gridin *density_gridin * dist * 1000., chunks = da_chunks_xyz)
             if redden:
                 from extinction import fm07 as extinction_law
                 if local_dustmap:
-                    bayestar = local_dustmap
+                    from dustmaps.marshall import MarshallQuery
+                    marshall = MarshallQuery()
                 else:
-                    from dustmaps.bayestar import BayestarWebQuery
-                    bayestar = BayestarWebQuery(version='bayestar2017')
+                    from dustmaps.marshall import MarshallWebQuery
+                    marhshall = MarshallWebQuery()
 
-                def trans(Av = None, wave = None):
-                    Av_to_Awave = extinction_law(wave,1.)
-                    res = 10**(-0.4*(Av * Av_to_Awave))
-                    return res
+                wave_Ks = 2.17 *u.micron
+                A_KS_to_A_v = 1. / extinction_law(np.array([wave_Ks.to(u.AA).value]), 1.)
+                wave_ha = np.array([6562.8])
+                A_V_to_A_ha = extinction_law(wave_ha, 1.)
 
-                def bayestar_it(ell, coords= None, mode = 'median'):
-                    return 2.742* bayestar(coord.SkyCoord(coords[ell]), mode = mode)
+                marshall_AK = da.from_array(marshall(coord.SkyCoord(lbd_coords_withvel)), chunks = da_chunks_xyz*100)
 
-                pool = multiprocessing.Pool()
-
-                if local_dustmap:
-                    Av = 2.742 * bayestar(coord.SkyCoord(lbd_coords_withvel), mode = 'median')
-                    print("computed Av")
-                else:
-                    partial_bayestar = delayed(partial)(bayestar_it, coords = lbd_coords_withvel)
-                    Av = delayed(pool.map)(partial_bayestar, range(nx*ny*nz))
-
-                trans_arr = trans(Av = Av, wave = np.array([6562.8]))
-                trans_grid = np.swapaxes(trans_arr.T.transpose().reshape(nx,ny,nz), 0,2)
+                trans_ha = 10**(-0.4 * A_V_to_A_ha * A_KS_to_A_v * marshall_AK)
+                print('Computed Av')
+                trans_grid = da.swapaxes(trans_ha.T.transpose().reshape(nx,ny,nz), 0,2)
                 EM = delayed(EM * trans_grid)
 
-            result_cube = delayed(da.einsum)('jkli, jkl->ijkl', gaussian_cells, EM)
-            result_cube = delayed(result_cube.sum(axis=1))
+            EM = delayed(EM * a_0_constant / vel_disp.value * (T_gas.value/10.**4)**(b_constant))
+            result_cube = delayed(da.einsum)('jkli, jkl->ijkl', 
+                                            gaussian_cells, 
+                                            EM)
+            result_cube = delayed(result_cube.sum)(axis=1)
             print("Computing Resulting Emission from Density Structure:")
             if visualize:
                 result_cube.visualize(filename = 'EmissionCubeGraph.svg')
             with ProgressBar():
-                emission_cube = result_cube.compute() * u.cm**(-6) * u.pc / u.km * u.s
+                emission_cube = result_cube.compute() 
 
-            if redden:
-                pool.close()
     else:
         if species == 'hi':
             density_grid = ne.evaluate("density_gridin *33.52 / (T_gas * vel_disp)* dist *1000. / 50.")
@@ -697,7 +719,7 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
             emission_cube = ne.evaluate("T_gas * (1 - exp(-1.* optical_depth))") * u.K
         if species =='ha':
             if case == 'B': #Recombination case B
-                b_constant = -0.942 - 0.031 * np.log(T_gas/10.**4)
+                b_constant = -0.942 - 0.031 * np.log(T_gas.value/10.**4)
                 a_0_constant = 0.1442 * u.R / u.km * u.s
             if case == 'A': #Recombination case A
                 b_constant = -1.009
@@ -706,30 +728,22 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
             if redden:
                 from extinction import fm07 as extinction_law
                 if local_dustmap:
-                    bayestar = local_dustmap
+                    from dustmaps.marshall import MarshallQuery
+                    marshall = MarshallQuery()
                 else:
-                    from dustmaps.bayestar import BayestarWebQuery
-                    bayestar = BayestarWebQuery(version='bayestar2017')
+                    from dustmaps.marshall import MarshallWebQuery
+                    marhshall = MarshallWebQuery()
 
-                def trans(Av = None, wave = None):
-                    Av_to_Awave = extinction_law(wave,1.)
-                    res = 10**(-0.4*(Av * Av_to_Awave))
-                    return res
+                wave_Ks = 2.17 *u.micron
+                A_KS_to_A_v = 1. / extinction_law(np.array([wave_Ks.to(u.AA).value]), 1.)
+                wave_ha = np.array([6562.8])
+                A_V_to_A_ha = extinction_law(wave_ha, 1.)
 
-                def bayestar_it(ell, coords= None, mode = 'median'):
-                    return 2.742* bayestar(coord.SkyCoord(coords[ell]), mode = mode)
+                marshall_AK = marshall(coord.SkyCoord(lbd_coords_withvel))
 
-                pool = multiprocessing.Pool()
-
-                if local_dustmap:
-                    Av = 2.742 * bayestar(coord.SkyCoord(lbd_coords_withvel), mode = 'median')
-                    print("computed Av")
-                else:
-                    partial_bayestar = delayed(partial)(bayestar_it, coords = lbd_coords_withvel)
-                    Av = delayed(pool.map)(partial_bayestar, range(nx*ny*nz))
-
-                trans_arr = trans(Av = Av, wave = np.array([6562.8]))
-                trans_grid = np.swapaxes(trans_arr.T.transpose().reshape(nx,ny,nz), 0,2)
+                trans_ha = 10**(-0.4 * A_V_to_A_ha * A_KS_to_A_v * marshall_AK)
+                print('Computed Av')
+                trans_grid = np.swapaxes(trans_ha.T.transpose().reshape(nx,ny,nz), 0,2)
                 EM *= trans_grid
 
             emission_cube = np.einsum('jkli, jkl->ijkl', gaussian_cells, 
@@ -880,11 +894,12 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                  alpha = None, beta = None, theta = None, 
                  bd_max = None, Hz = None, z_sigma_lim = None, dens0 = None, redden = False,
                  velocity_factor = None, vel_0 = None, el_constant1 = None, el_constant2 = None, 
-                 vel_disp = None, vmin = None, vmax = None, visualize = False, flaring = False,
+                 vel_disp = None, vmin = None, vmax = None, visualize = False, 
+                 flaring = False, flaring_radial = False, min_bd = None,
                  species = None, T_gas = None, LSR_options = {}, galcen_options = {}, return_all = False, 
                  BL82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None,
                  LBD_output_in = None, LBD_output_keys_in = None, model_header = None, 
-                 local_dustmap = None, DK18 = False, case = None, **kwargs):
+                 local_dustmap = False, DK18 = False, case = None, **kwargs):
 
         if not meta:
             meta = {}
@@ -1068,7 +1083,8 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                                                 alpha.value, beta.value, theta.value, 
                                                 L_range.value, B_range.value, D_range.value, 
                                                 memmap = memmap, da_chunks_xyz = da_chunks_xyz, visualize = visualize,
-                                                LSR_options = LSR_options, galcen_options = galcen_options, flaring = flaring,
+                                                LSR_options = LSR_options, galcen_options = galcen_options, 
+                                                flaring = flaring, flaring_radial = flaring_radial, min_bd = min_bd,
                                                 return_all = return_all, species = species, **kwargs)
 
             if return_all:
