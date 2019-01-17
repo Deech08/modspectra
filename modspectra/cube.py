@@ -26,6 +26,8 @@ from .cubeMixin import EmissionCubeMixin
 
 import datetime
 
+# Helper Functions
+
 def ensure_dir(file_path):
     directory = os.path.dirname(file_path)
     if not os.path.exists(directory):
@@ -39,9 +41,21 @@ def find_nannearest_idx(array,value):
     idx = np.nanargmin(np.abs(array-value))
     return [idx]
 
+# Defie TiltedDisk Coordinate Frame
+
 class TiltedDisk(coord.BaseCoordinateFrame):
     """
     A cartesian coordinate system in the frame of the tilted elliptical disk 
+    Requires three attributes - currently defaults to version of Krishnarao, Benjamin, Haffner (2019)
+    Three angles describing geometry of the structure
+    Attributes
+    ----------
+    alpha:  `~astropy.units.Quantity`, optional, must be keyword
+            Tilt Angle 
+    beta:   `~astropy.units.Quantity`, optional, must be keyword
+            90*u.deg - inclination
+    theta:  `~astropy.units.Quantity`, optional, must be keyword
+            Major Axis Angle
 
     Parameters
     ----------
@@ -75,9 +89,9 @@ class TiltedDisk(coord.BaseCoordinateFrame):
 
     # Specify frame attributes required to fully specify the frame
     # Rotation angles
-    alpha = coord.QuantityAttribute(default=0.*u.rad, unit = u.rad)
-    beta = coord.QuantityAttribute(default=0.*u.rad, unit = u.rad)
-    theta = coord.QuantityAttribute(default=0.*u.rad, unit = u.rad)
+    alpha = coord.QuantityAttribute(default=13.5*u.rad, unit = u.rad)
+    beta = coord.QuantityAttribute(default=20.*u.rad, unit = u.rad)
+    theta = coord.QuantityAttribute(default=48.5*u.rad, unit = u.rad)
 
 
 
@@ -90,7 +104,7 @@ def get_transformation_matrix(tilteddisk_frame, inverse = False):
     tilteddisk_frame: TiltedDisk class Coordinate frame
 
     inverse: 'bool', optional, must be keyword
-    	if True, return the transposed matrix for converting from the Galactocentric frame to the TiltedDisk frame 
+        if True, return the transposed matrix for converting from the Galactocentric frame to the TiltedDisk frame 
 
     """
     alpha = tilteddisk_frame.alpha.value
@@ -125,6 +139,8 @@ def galactocentric_to_td(galactocentric_coord, tilteddisk_frame):
 
 
 
+# Define some helper functions for the Elliptical Shape
+
 def ellipse_equation(bd, el_constant1, el_constant2, bd_max, x_coord, y_coord):
     """
     Equation for an ellipse in the form from Burton & Liszt (1978)
@@ -133,17 +149,17 @@ def ellipse_equation(bd, el_constant1, el_constant2, bd_max, x_coord, y_coord):
     Parameters
     ----------
     bd: 'number'
-    	semi-minor axis of ellipse
+        semi-minor axis of ellipse
     el_constant1: 'number'
-    	First parameter for defining ellipse 
+        First parameter for defining ellipse 
     el_constant2: 'number'
-    	second parameter for defining ellipse
+        second parameter for defining ellipse
     bd_max: 'number'
-    	Maximum semi-minor axis allowed within defined elliptical disk
+        Maximum semi-minor axis allowed within defined elliptical disk
     x_coord: 'number, ndarray'
-    	x-coordinate in ellipse
+        x-coordinate in ellipse
     y_coord: 'number, ndarray'
-    	y-coordinate in ellipse 
+        y-coordinate in ellipse 
     """
     a = bd *el_constant1 + el_constant2 * bd**2 / bd_max
     result = x_coord**2 / a**2 + y_coord**2 / bd**2 - 1.
@@ -159,11 +175,11 @@ def bd_equation(bd, x_coord, y_coord):
     Parameters
     ----------
     bd: 'number'
-    	semi-minor axis of ellipse
+        semi-minor axis of ellipse
     x_coord: 'number, ndarray'
-    	x-coordinate in ellipse
+        x-coordinate in ellipse
     y_coord: 'number, ndarray'
-    	y-coordinate in ellipse 
+        y-coordinate in ellipse 
 
     I think this is a useless equation... consider removing entirely!
     """
@@ -172,6 +188,8 @@ def bd_equation(bd, x_coord, y_coord):
     #result = bd**2 / a**2 * (a**2 - x_coord**2) - y_coord**2
     #print(result)
     return result
+
+# the semi-minor axis parameter, bd, can not be analytically solved
 
 def bd_solver(ell, xyz, z_sigma_lim, Hz, bd_max, el_constant1, el_constant2):
     """
@@ -182,19 +200,19 @@ def bd_solver(ell, xyz, z_sigma_lim, Hz, bd_max, el_constant1, el_constant2):
     Parameters
     ----------
     ell: 'int'
-    	element number to iterate over
+        element number to iterate over
     xyz: 'ndarray with shape (3,N)'
-    	xyz-coordinates
+        xyz-coordinates
     z_sigma_lim: 'number'
-    	sigma cuttoff to stop solving Ellipse equation for for z above a specified scale height threshold
+        sigma cuttoff to stop solving Ellipse equation for for z above a specified scale height threshold
     Hz: 'number'
-    	Scale height along z axis
+        Scale height along z axis
     bd_max: 'number'
-    	Maximum semi-minor axis allowed within defined elliptical disk
+        Maximum semi-minor axis allowed within defined elliptical disk
     el_constant1: 'number'
-    	First parameter for defining ellipse 
+        First parameter for defining ellipse 
     el_constant2: 'number'
-    	second parameter for defining ellipse
+        second parameter for defining ellipse
     """
     x_coord = xyz[0,ell]
     y_coord = xyz[1,ell]
@@ -222,77 +240,104 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
                    velocity_factor, vel_0, el_constant1, el_constant2,
                    alpha, beta, theta, L_range, B_range, D_range, species = 'hi',
                    LSR_options={}, galcen_options = {}, visualize = False, 
-                   flaring = False, flaring_radial = False, volume = False, min_bd = None,
+                   flaring = False, flaring_radial = False, min_bd = None,
                    memmap = False, da_chunks_xyz = 50, return_all = False, **kwargs):
     """
-    Creates kinematic disk following Elliptical Orbits of the from from Burton & Liszt (1982)
+    Creates kinematic disk following Elliptical Orbits of the from from Burton & Liszt (1982) or Krishnarao, Benjamin, Haffner (2019)
     Numerically solves for ellipse equation for every point within the disk space
     output is used directly to create a Longitude-Latitude-Velocity SpectralCube object using 'modspectra.cube.EllipticalLBD'
 
     Uses numexpr package to evaluate math
     Uses multiprocessing to solve Ellipse Equation
+    Uses Dask for memory mapping
 
     Parameters
     ----------
     resolution: 'tuple, list'
-    	Resolution to create grid 
+        Resolution to create grid 
     bd_max: 'number'
-    	Maximum semi-minor axis allowed within defined elliptical disk
+        Maximum semi-minor axis allowed within defined elliptical disk
     Hz: 'number'
-    	Scale height along z axis
+        Scale height along z axis
     z_sigma_lim: 'number'
-    	sigma cuttoff to stop solving Ellipse equation for for z above a specified scale height threshold
+        sigma cuttoff to stop solving Ellipse equation for for z above a specified scale height threshold
     dens0: 'number'
-    	Density at midplane of Elliptical Disk
+        Density at midplane of Elliptical Disk
     velocity_factor: 'number'
-    	Constant used to define velocity field in Burton & Liszt model
-    vel_0: 'number'	
-    	Max velocity of Elliptical orbit
-    	Corresponds to velocity of outermost orbit on semi-minor axis
+        Constant used to define velocity field in Burton & Liszt model
+    vel_0: 'number' 
+        Max velocity of Elliptical orbit
+        Corresponds to velocity of outermost orbit on semi-minor axis
     el_constant1: 'number'
-    	First parameter for defining ellipse 
+        First parameter for defining ellipse 
     el_constant2: 'number'
-    	second parameter for defining ellipse
+        second parameter for defining ellipse
     alpha: 'number'
-    	Tilt angle alpha - see :class:'TiltedDisk'
+        Tilt angle alpha - see :class:'TiltedDisk'
     beta: 'number'
-    	Tilt angle Beta - see :class:'TiltedDisk'
-    	90 - beta is the inclination
+        Tilt angle Beta - see :class:'TiltedDisk'
+        90 - beta is the inclination
     theta: 'number'
-    	Tilt angle of major axis of Ellipse - see :class:'TiltedDisk'
+        Tilt angle of major axis of Ellipse - see :class:'TiltedDisk'
     L_range: :list:'number'
-    	Range of Longtiude to create grid over
+        Range of Longtiude to create grid over
     B_range: :list:'number'
-    	Range of Latitude to create grid over
+        Range of Latitude to create grid over
     D_range: :list:'number'
-    	Range of Distances to create grid over
+        Range of Distances to create grid over
 
+
+    species: 'str', optional, must be keyword
+        Can be 'hi' or 'ha' to set whether disk will be for neutral or ionized hydrogen (HI 21cm or H-Alpha)
+        Default is 'hi'
     LSR_options: 'dictionary', optional, must be keyword
-    	Dictionary of **kwargs to pass into :class:'~astropy.coordinates.GalacticLSR'
+        Dictionary of **kwargs to pass into :class:'~astropy.coordinates.GalacticLSR'
+    galcen_options: 'dictionary', optional, must be keyword
+        set galcen_options to be passed to coordinate frames
+    visualize: 'bool', optional, must be keyword
+        if using dask, returns dask visualization map
+    flaring: 'bool, number', optional, must be keyword
+        if False, disk has a constant scale height
+        if a number, then sets the flaring parameter, F_z, as described in Krishnarao, Benjamin, Haffner (2019)
+    flaring_radial: 'bool', optional, must be keyword
+        if flaring is present then
+            if False (default), flaring of scale height is a function of bd, the semi minor axis
+            if True, flaring of scale height is a function of r, the cyclindrical radius coordinate in the TiltedDisk Frame
+    min_bd: 'number', optional, must be keyword
+        sets the minimum value of the semi minor axis to allow
+        Used to make a ring, rather than a disk structure
+    memmap: 'bool', optional, must be keyword
+        if True, use dask for memory mapping when creating disk structure
+        useful for higher resolution computes
+    da_chunks_xyz = 'number', optional, must be keyword
+        if memmap is True, sets the dask chunk size
+        Default to 50, likely too small for efficiency
     return_all: 'bool', optional, must be keyword
-    	if True, will return all output components
-    	used for diagnosing issues
+        if True, will return all output components
+        used for diagnostic purposes
+    **kwargs: 
+        currenlty not implemented
 
     Returns
     -------
     lbd_coords_withvel: :class:'~astropy.coordinates.GalacticLSR'
-    	astropy.coord array containing all coordinates corresponding to fabricated grid of points
+        astropy.coord array containing all coordinates corresponding to fabricated grid of points
     dens_grid: 'numpy.ndarray'
-    	ndarray with shape (resolution) containing density of points in Longitude-Latitude-Distance grid
-    	axes order swapped to be ready for SpectralCube creation
+        ndarray with shape (resolution) containing density of points in Longitude-Latitude-Distance grid
+        axes order swapped to be ready for SpectralCube creation (Distance, Latitude, Longitude)
     cdelt: 'numpy.ndarray'
-    	ndarray with shape (3) containing the step size for Longitude, Latitude, and Distance used in the grid
-    	Used for WCS object creation in later instances
+        ndarray with shape (3) containing the step size for Longitude, Latitude, and Distance used in the grid
+        Used for WCS object creation in later instances
 
     disk_coordinates: :class:'TiltedDisk', optional, only if return_all == True
-    	TiltedDisk coordinate class containing grid coordinates in original tilted disk space
+        TiltedDisk coordinate class containing grid coordinates in original tilted disk space
     galcen_coords_withvel: :class:'~astropy.coordinates.Galactocentric'
-    	TiltedDisk class transformed to Galactocentric frame 
+        TiltedDisk class transformed to Galactocentric frame 
     bd_grid: 'numpy.ndarray'
-    	ndarray with shape (resolution) containing solved values of bd from Ellipse Equation solutions
-    	axes order swapped to match dens_grid
+        ndarray with shape (resolution) containing solved values of bd from Ellipse Equation solutions
+        axes order swapped to match dens_grid
     vel_magnitude_grid: 'numpy.ndarray'
-    	ndarray with shape (resolution) contianing velocity vector magnitude at corresponding grid position
+        ndarray with shape (resolution) contianing velocity vector magnitude at corresponding grid position
     """
     # Extract resolution information
     nx, ny, nz = resolution
@@ -347,7 +392,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
                         #np.exp(-0.5 * (z[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] / H)**2)
                 outside = (z > z_sigma*H) | (bd > bdmax)
                 if min_bd != None:
-                	outside |= bd < min_bd
+                    outside |= bd < min_bd
                 density = density0 * np.exp(-0.5 * (z / H)**2)
                 density[outside] = 0.0
                 return density
@@ -357,7 +402,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
             def define_density_grid(z, z_sigma, bd, bdmax, H, density0, min_bd = min_bd):
                 outside = (bd > bdmax)
                 if min_bd != None:
-                	outside |= bd < min_bd
+                    outside |= bd < min_bd
                 slope = H * (flaring - 1.) / bdmax
                 H_val = slope * bd + H
                 density = density0 * np.exp(-0.5 * (z / H_val)**2) / (H_val / H)
@@ -372,7 +417,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
             def define_density_grid(z, z_sigma, bd, bdmax, H, density0, radial_coordinate, min_bd = min_bd):
                 outside = (bd > bdmax)
                 if min_bd != None:
-                	outside |= bd < min_bd
+                    outside |= bd < min_bd
                 admax = bdmax * (el_constant1 + el_constant2)
                 slope = H * (flaring - 1.) / admax
                 H_val = slope * r_coor + H
@@ -466,15 +511,15 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 
         if return_all:
 
-        	# Convert regularized grid points into Galactocentric frame
-        	galcen_coords = lbd_coords.transform_to(coord.Galactocentric(**galcen_options))
-        	disk_coords = galcen_coords.transform_to(TiltedDisk(alpha = alpha*u.deg, 
+            # Convert regularized grid points into Galactocentric frame
+            galcen_coords = lbd_coords.transform_to(coord.Galactocentric(**galcen_options))
+            disk_coords = galcen_coords.transform_to(TiltedDisk(alpha = alpha*u.deg, 
                                                             beta = beta*u.deg, theta = theta*u.deg))
         else:
-        	disk_coords = lbd_coords.transform_to(coord.Galactocentric(**galcen_options)).transform_to(TiltedDisk(alpha = alpha*u.deg, 
+            disk_coords = lbd_coords.transform_to(coord.Galactocentric(**galcen_options)).transform_to(TiltedDisk(alpha = alpha*u.deg, 
                                                             beta = beta*u.deg, theta = theta*u.deg))
 
-        # Create standard numpy ndarray of disk_coords and reshape to grid, matching original lbd_grid object	
+        # Create standard numpy ndarray of disk_coords and reshape to grid, matching original lbd_grid object   
         disk_coords_arr = np.array([disk_coords.x.value, disk_coords.y.value, disk_coords.z.value])
         xyz_grid = disk_coords_arr.T.transpose().reshape(-1,nx,ny,nz)
 
@@ -542,10 +587,10 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 
         # Transform to GalacticLSR frame
         if return_all:
-        	galcen_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**galcen_options))
-        	lbd_coords_withvel = galcen_coords_withvel.transform_to(coord.GalacticLSR(**LSR_options))
+            galcen_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**galcen_options))
+            lbd_coords_withvel = galcen_coords_withvel.transform_to(coord.GalacticLSR(**LSR_options))
         else:
-        	lbd_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**galcen_options)).transform_to(coord.GalacticLSR(**LSR_options))
+            lbd_coords_withvel = disk_coordinates.transform_to(coord.Galactocentric(**galcen_options)).transform_to(coord.GalacticLSR(**LSR_options))
 
         # save Grid creation information for use in creating accurate WCS object associated with SpectralCube Object in future
         dD = lbd_grid[2,0,0,1] - lbd_grid[2,0,0,0]
@@ -575,62 +620,79 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
     Parameters
     ----------
     lbd_coords_withvel: :class:'~astropy.coordinates.GalacticLSR'
-    	astropy.coord array containing all coordinates corresponding to fabricated grid of points
+        astropy.coord array containing all coordinates corresponding to fabricated grid of points
     dens_grid: 'numpy.ndarray'
-    	ndarray with shape (resolution) containing density of points in Longitude-Latitude-Distance grid
-    	axes order swapped to be ready for SpectralCube creation
+        ndarray with shape (resolution) containing density of points in Longitude-Latitude-Distance grid
+        axes order swapped to be ready for SpectralCube creation
     cdelt: 'numpy.ndarray'
-    	ndarray with shape (3) containing the step size for Longitude, Latitude, and Distance used in the grid
-    	Used for WCS object creation in later instances
+        ndarray with shape (3) containing the step size for Longitude, Latitude, and Distance used in the grid
+        Used for WCS object creation in later instances
     vel_disp: 'number, Quantity
-    	Velocity dispersion of the gas in units of km/s (if not Quantity)
+        Velocity dispersion of the gas in units of km/s (if not Quantity)
     vmin: 'number, Quantity'
-    	Min Velocity to create in grid in units of km/s (if not Quantity)
+        Min Velocity to create in grid in units of km/s (if not Quantity)
     vmax: 'number, Quantity'
-    	Max Velocity to create in grid in units of km/s (if not Quantity)
+        Max Velocity to create in grid in units of km/s (if not Quantity)
     vel_resolution: 'int'
-    	Resolution to Create along velocity axis
+        Resolution to Create along velocity axis
     L_range: :list:'number'
-    	Range of Longtiude to create grid over	
+        Range of Longtiude to create grid over  
     B_range: :list:'number'
-    	Range of Latitude to create grid over
+        Range of Latitude to create grid over
 
     species: 'str', optional, must be keyword of either 'hi' or 'ha'
-    	Specifies whether emission cube will be neutral (HI 21-cm) gas or ionized (H-Alpha) gas emission 
-    	Defaults to HI netural gas
+        Specifies whether emission cube will be neutral (HI 21-cm) gas or ionized (H-Alpha) gas emission 
+        Defaults to HI netural gas
+    visualize: 'bool', optional, must be keyword
+        if using dask, returns dask visualization map
     T_gas: 'number, Quantity', optional, must be keyword
-    	Temperature of neutral HI 21-cm emitting gas in Kelvin
-    	Defaults to 120 K
+        Temperature of neutral HI 21-cm emitting gas in Kelvin
+        Defaults to 120 K
+    memmap: 'bool', optional, must be keyword
+        if True, use dask for memory mapping when creating disk structure
+        useful for higher resolution computes
+    da_chunks_xyz: 'number', optional, must be keyword
+        if memmap is True, sets the dask chunk size
+        Default to 50, likely too small for efficiency
+    redden: 'bool', optional, must be keyword
+        if True, apply extinction corrections to emission using 3D dustmaps of Marshall et al. (2006)
+        implemented via the dustmaps and extinction python packages
+    local_dustmap: 'bool', optional, must be keyword
+        if True, use local copy of dustmap
+        if False, use use web query
+    case: 'str', optional, must be keyword
+        if species is 'ha', then sets the recombination case to use
+        Defaults to case B recombination
 
     Returns
     -------
     emission_cube: :class:'numpy.ndarray'
-        Emission values in LBD cube
-    wcs: '~astropy.wcs.WCS'
+        Emission values in DBL cube
+    DBL_wcs: '~astropy.wcs.WCS'
         WCS information associated with emission_cube 
     """
 
     # Check for units
     if not isinstance(vel_disp, u.Quantity):
-    	vel_disp = u.Quantity(vel_disp, unit = u.km / u.s)
-    	logging.warning("No units specified for Velocity Dispersion, vel_disp, assuming"
-    			"{}".format(vel_disp.unit))
+        vel_disp = u.Quantity(vel_disp, unit = u.km / u.s)
+        logging.warning("No units specified for Velocity Dispersion, vel_disp, assuming"
+                "{}".format(vel_disp.unit))
     elif not vel_disp.unit == u.km/u.s:
-    	vel_disp = vel_disp.to(u.km / u.s)
+        vel_disp = vel_disp.to(u.km / u.s)
 
     if not isinstance(vmin, u.Quantity):
-    	vmin = u.Quantity(vmin, unit = u.km / u.s)
-    	logging.warning("No units specified for Min Velocity, vmin, assuming"
-    			"{}".format(vmin.unit))
+        vmin = u.Quantity(vmin, unit = u.km / u.s)
+        logging.warning("No units specified for Min Velocity, vmin, assuming"
+                "{}".format(vmin.unit))
     elif not vmin.unit == u.km/u.s:
-    	vmin = vmin.to(u.km / u.s)
+        vmin = vmin.to(u.km / u.s)
 
     if not isinstance(vmax, u.Quantity):
-    	vmax = u.Quantity(vmax, unit = u.km / u.s)
-    	logging.warning("No units specified for Max Velocity, vmax, assuming"
-    			"{}".format(vmax.unit))
+        vmax = u.Quantity(vmax, unit = u.km / u.s)
+        logging.warning("No units specified for Max Velocity, vmax, assuming"
+                "{}".format(vmax.unit))
     elif not vmax.unit == u.km/u.s:
-    	vmax = vmax.to(u.km / u.s)
+        vmax = vmax.to(u.km / u.s)
 
     if not isinstance(T_gas, u.Quantity):
         T_gas = u.Quantity(T_gas, unit = u.K)
@@ -718,12 +780,12 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
             optical_depth = np.einsum('jkli, jkl->ijkl', gaussian_cells, density_grid).sum(axis = 1)
             emission_cube = ne.evaluate("T_gas * (1 - exp(-1.* optical_depth))") * u.K
         if species =='ha':
-            if case == 'B': #Recombination case B
-                b_constant = -0.942 - 0.031 * np.log(T_gas.value/10.**4)
-                a_0_constant = 0.1442 * u.R / u.km * u.s
             if case == 'A': #Recombination case A
                 b_constant = -1.009
                 a_0_constant = 0.0938 * u.R / u.km * u.s
+            else: #Recombination case B
+                b_constant = -0.942 - 0.031 * np.log(T_gas.value/10.**4)
+                a_0_constant = 0.1442 * u.R / u.km * u.s
             EM = ne.evaluate("density_gridin**2 * dist * 1000.")
             if redden:
                 from extinction import fm07 as extinction_law
@@ -816,7 +878,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         Default units of cm^-3
     velocity_factor: 'number'
         Constant used to define velocity field in Burton & Liszt model
-    vel_0: 'number'	
+    vel_0: 'number' 
         Max velocity of Elliptical orbit
         Corresponds to velocity of outermost orbit on semi-minor axis
         Default unit of km/s
@@ -830,7 +892,21 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         Min Velocity to create in grid in units of km/s (if not Quantity)
     vmax: 'number, Quantity'
         Max Velocity to create in grid in units of km/s (if not Quantity)
-
+    visualize: 'bool', optional, must be keyword
+        if using dask, returns dask visualization map
+    redden: 'bool', optional, must be keyword
+        if True, apply extinction corrections to emission using 3D dustmaps of Marshall et al. (2006)
+        implemented via the dustmaps and extinction python packages
+    flaring: 'bool, number', optional, must be keyword
+        if False, disk has a constant scale height
+        if a number, then sets the flaring parameter, F_z, as described in Krishnarao, Benjamin, Haffner (2019)
+    flaring_radial: 'bool', optional, must be keyword
+        if flaring is present then
+            if False (default), flaring of scale height is a function of bd, the semi minor axis
+            if True, flaring of scale height is a function of r, the cyclindrical radius coordinate in the TiltedDisk Frame
+    min_bd: 'number', optional, must be keyword
+        sets the minimum value of the semi minor axis to allow
+        Used to make a ring, rather than a disk structure
     species: 'str', optional, must be keyword of either 'hi' or 'ha'
         Specifies whether emission cube will be neutral (HI 21-cm) gas or ionized (H-Alpha) gas emission 
         Defaults to HI netural gas
@@ -839,25 +915,22 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         Defaults to 120 K
     LSR_options: 'dictionary', optional, must be keyword
         Dictionary of **kwargs to pass into :class:'~astropy.coordinates.GalacticLSR'
+    galcen_options: 'dictionary', optional, must be keyword
+        set galcen_options to be passed to coordinate frames
     return_all: 'bool', optional, must be keyword
         if True, will return all output components
         used for diagnosing issues
         most information can be determined / converted from initial 3 output elements
         only other useful bit is bd_grid - may incorporate into default output in future
-    BL82: 'bool', optional, must be keyword
-        if True, will create a default cube with the exact parameters of Burton & Liszt 1982
+    LB82: 'bool', optional, must be keyword
+        if True, will create a default cube with the exact parameters of Liszt & Burton (1982)
+        if any parameters are already set, they will be used instead
     defaults: 'bool'
         if True, will use detaulf resolution and other information to create object
     create: 'bool'
         if True, will create cube using provided parameters
         ***Important*** must be True to create a cube, otherwise will assume it is 
             loading/initiating cube from provided data
-    redden: 'bool'
-        if True, will apply extinction corrections (for species = 'ha')
-        will WebQuery from (Green et al. 2018) 3D dustmaps unless...
-    local_dustmap: 'dustmaps.__'
-        if provided, will use this function to query the provided dustmap. 
-        Used to do a local query of the 3D dustmaps
     memmap: 'bool'
         if true, will create cube using memory mapping via dask 
         Note: Currently does not work properly with species = 'ha'
@@ -866,18 +939,19 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
     LBD_output_in: 'Dictionary', optional, must be keyword
         provide LBD output information to save in EmissionCube class 
         only used if EmissionCube is from a model created by this package
-    LBD_output_in: 'list, str', optional, must be keyword
+    LBD_output_keys_in: 'list, str', optional, must be keyword
         provide keys tot he entries of LBD_output_in 
         only used if EmissionCube is from a model created by this package
     model_header: 'fits.header'
         Provide header to gather model parameters and information
         only used if EmissionCube is from a model created by this package
-    visualize: 'bool'
-        if True, will output and save graphs from delayed dask operations to 
-        show steps involved in compution
-    DK18: 'bool'
-        if true, will will create default cube with parameters of (Krishnarao et al. 2018)
-        Same as BL82, but updated to modern distance estimates
+    local_dustmap: 'bool', optional, must be keyword
+        if True, use local copy of dustmap
+        if False, use use web query
+    DK19: 'bool'
+        if true, will will create default H-Alpha cube with parameters of (Krishnarao et al. 2019)
+        if any parameters are already set, they will be used instead
+        
 
     Returns
     -------
@@ -892,22 +966,26 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                  resolution = None, vel_resolution = None, 
                  L_range = None, B_range = None, D_range = None, 
                  alpha = None, beta = None, theta = None, 
-                 bd_max = None, Hz = None, z_sigma_lim = None, dens0 = None, redden = False,
+                 bd_max = None, Hz = None, z_sigma_lim = None, dens0 = None,
                  velocity_factor = None, vel_0 = None, el_constant1 = None, el_constant2 = None, 
-                 vel_disp = None, vmin = None, vmax = None, visualize = False, 
+                 vel_disp = None, vmin = None, vmax = None, visualize = False, redden = False,
                  flaring = False, flaring_radial = False, min_bd = None,
                  species = None, T_gas = None, LSR_options = {}, galcen_options = {}, return_all = False, 
-                 BL82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None,
+                 LB82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None,
                  LBD_output_in = None, LBD_output_keys_in = None, model_header = None, 
-                 local_dustmap = False, DK18 = False, case = None, **kwargs):
+                 local_dustmap = False, DK19 = False, case = None, **kwargs):
 
         if not meta:
             meta = {}
         
         # Define Burton & Liszt 1982 parameters if needed
-        if BL82:
-            bd_max = 0.6 * u.kpc
-            Hz = 0.1 * u.kpc
+        if LB82:
+            galcen_distance_factor = 8.127 / 10.
+            el_constant1 = 1.6
+            el_constant2 = 1.5
+            T_gas = 120. * u.K
+            bd_max = 0.6 * u.kpc * galcen_distance_factor
+            Hz = 0.1 * u.kpc * galcen_distance_factor
             z_sigma_lim = 3
             dens0 = 0.33 * 1/u.cm/u.cm/u.cm
             vel_0 = 360.*u.km/u.s
@@ -919,36 +997,55 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             alpha = 13.5 * u.deg
             beta = 20. * u.deg
             theta = 48.5 * u.deg
+            species = 'hi'
 
-        if DK18:
+        if DK19:
             galcen_distance_factor = 8.127 / 10.
-            el_constant1 = 1.6
-            el_constant2 = 1.5
-            T_gas = 120. * u.K
-            bd_max = 0.6 * u.kpc * galcen_distance_factor
-            Hz = 0.1 * u.kpc * galcen_distance_factor
-            z_sigma_lim = 3
-            dens0 = 0.33 * 1/u.cm/u.cm/u.cm
-            vel_0 = 360.*u.km/u.s
-            velocity_factor = 0.1
-            vel_disp = 9. * u.km/u.s
-            alpha = 13.5 * u.deg
-            beta = 20. * u.deg
-            theta = 48.5 * u.deg
+            if not el_constant1:
+                el_constant1 = 1.6
+            if not el_constant2:
+                el_constant2 = 1.5
+            if not T_gas:
+                T_gas = 8000. * u.K
+            if not bd_max:
+                bd_max = 0.6 * u.kpc * galcen_distance_factor
+            if not Hz:
+                Hz = 0.26 * u.kpc 
+            if not z_sigma_lim:
+                z_sigma_lim = 3
+            if not dens0:
+                dens0 = 0.39 * 1/u.cm/u.cm/u.cm
+            if not vel_0:
+                vel_0 = 360.*u.km/u.s
+            if not velocity_factor:
+                velocity_factor = 0.1
+            if not vel_disp:
+                vel_disp = 12. * u.km/u.s
+            if not alpha:
+                alpha = 13.5 * u.deg
+            if not beta:
+                beta = 20. * u.deg
+            if not theta:
+                theta = 48.5 * u.deg
+            if not species:
+                species = 'ha'
+            if not redden:
+                redden = True
+
 
 
         # Define default parameters if needed
         if defaults:
             if not resolution:
-                resolution = (64,64,64)
+                resolution = (128,128,128)
             if not vel_resolution:
-                vel_resolution = 545
+                vel_resolution = 550
             if not L_range:
                 L_range = [-10,10]*u.deg
             if not B_range:
                 B_range = [-8,8] * u.deg
             if not D_range:
-                D_range = [7,13] * u.kpc
+                D_range = [5,13] * u.kpc
             if not species:
                 species = 'hi'
             if not vmin:
@@ -1280,6 +1377,32 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         else:
             super().write(self, filename, overwrite = overwrite, format = format)
 
+
+    # Convenience functions for quickly making DK19 Disk
+    def create_DK19(**kwargs):
+        """
+        Quick Create a DK19 H-Alpha emisison cube as described in Krishnarao, Benjamin, Haffner (2019)
+
+        Parameters
+        ----------
+
+        **kwargs: passed to EmissionCube.__init
+
+        """
+        return EmissionCube(create = True, DK19 = True, defaults = True, **kwargs)
+
+    # Convenience functions for quickly making LB82 Disk
+    def create_LB82(**kwargs):
+        """
+        Quick Create a DK19 H-Alpha emisison cube as described in Krishnarao, Benjamin, Haffner (2019)
+
+        Parameters
+        ----------
+
+        **kwargs: passed to EmissionCube.__init
+
+        """
+        return EmissionCube(create = True, LB82 = True, defaults = True, **kwargs)
 
 
 
