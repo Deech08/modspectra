@@ -735,12 +735,12 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
             with ProgressBar():
                 emission_cube = delayed(result_cube.compute())
         if species == 'ha':
-            if case == 'B': #Recombination case B
-                b_constant = -0.942 - 0.031 * np.log(T_gas.value/10.**4)
-                a_0_constant = 0.1442 * u.R / u.km * u.s
             if case == 'A': #Recombination case A
                 b_constant = -1.009
                 a_0_constant = 0.0938 * u.R / u.km * u.s
+            else: #Recombination case B
+                b_constant = -0.942 - 0.031 * np.log(T_gas.value/10.**4)
+                a_0_constant = 0.1442 * u.R / u.km * u.s
             EM = da.from_array(density_gridin *density_gridin * dist * 1000., chunks = da_chunks_xyz)
             if redden:
                 from extinction import fm07 as extinction_law
@@ -1403,6 +1403,55 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
 
         """
         return EmissionCube(create = True, LB82 = True, defaults = True, **kwargs)
+
+    def create_DK19_spectrum(coordinate, radius, 
+        l_resolution = 10, 
+        b_resolution = 10, 
+        distance_resolution = 200, 
+        **kwargs):
+        """
+        Quick Create a DK19 H-Alpha emisison spectrum for a given SkyCoord direction and beam radius
+
+        Parameters
+        ----------
+
+        coordinate: '`astropy.coordinates.SkyCoord'
+            central coordinate to compute spectrum
+        radius: 'Quantity or number'
+            Beam radius to compute spectrum over
+            assumes u.deg if number
+
+        l_resolution: 'number', optional, must be keyword
+            resolution across longitude dimension
+        b_resolution: 'number', optional, must be keyword
+            resolution across latitude dimension
+        distance_resolution: 'number', optional, must be keyword
+            resolution across distance dimension
+        """
+        if not isinstance(coordinate, coord.SkyCoord):
+            raise ValueError
+            print("Input coordinate must be a SkyCoord object")
+        elif not isinstance(coordinate.galcen_distance, u.Quantity):
+            coordinate.galcen_distance = 8.127 * u.kpc
+            logging.warning("No galcen_distance attribute specified for SkyCoord, assuming galcen_distance = "
+                "{0}{1}".format(coordinate.galcen_distance.value, coordinate.galcen_distance.unit))
+        if not isinstance(radius, u.Quantity):
+            radius *= u.deg
+            logging.warning("No units specified for radius, assuming"
+                "{}".format(radius.unit))
+
+        resolution = (l_resolution, b_resolution, distance_resolution)
+        c_gal = coordinate.transform_to('galactic')
+        L_range = [c_gal.l.to(u.deg) - radius.to(u.deg)*1.2, c_gal.l.to(u.deg) + radius.to(u.deg)*1.2]
+        B_range = [c_gal.b.to(u.deg) - radius.to(u.deg)*1.2, c_gal.b.to(u.deg) + radius.to(u.deg)*1.2]
+
+        cube = EmissionCube.create_DK19(resolution = resolution, L_range = L_range, B_range = B_range, **kwargs)
+        print(cube)
+        return cube.extract_beam(coordinate = c_gal, radius = radius, reduce_cube = False)
+
+
+
+
 
 
 

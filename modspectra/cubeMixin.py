@@ -112,7 +112,7 @@ class EmissionCubeMixin(object):
                 if not isinstance(latitude, u.Quantity):
                     latitude = latitude * u.deg
                 
-                ds9_str = 'Galactic; circle({0:.3}, {1:.4}, {2:.4})'.format(longitude, latitude, radius)
+                ds9_str = 'Galactic; circle({0:.3}, {1:.4}, {2:.4}")'.format(longitude.value, latitude.value, radius.to(u.arcsec).value)
                 if reduce_cube:
                     vel_unit, lat_axis_values, lon_unit = self.world[int(self.shape[0]/2), :, int(self.shape[2]/2)]
                     lat_slice_up = find_nannearest_idx(lat_axis_values, latitude+radius*1.2)[0]
@@ -130,7 +130,7 @@ class EmissionCubeMixin(object):
                     subcube = self.subcube_from_ds9region(ds9_str)
         else:
             coordinate_gal = coordinate.transform_to('galactic')
-            ds9_str = 'Galactic; circle({0:.3}, {1:.4}, {2:.4})'.format(coordinate.l, coordinate.b, radius)
+            ds9_str = 'Galactic; circle({0:.3}, {1:.4}, {2:.4}")'.format(coordinate_gal.l.value, coordinate_gal.b.value, radius.to(u.arcsec).value)
 
             if reduce_cube:
                 longitude = coordinate.l
