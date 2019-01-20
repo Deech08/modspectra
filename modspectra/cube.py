@@ -609,8 +609,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 
 def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
                     vel_resolution, L_range, B_range, species = 'hi', visualize = False,
-                    T_gas = 120. *u.K, memmap = False, da_chunks_xyz = 50, redden = False, 
-                    local_dustmap = False, case = 'B'):
+                    T_gas = 120. *u.K, memmap = False, da_chunks_xyz = 50, redden = False, case = 'B'):
     """
     Creates a Longitude-Latitude-Velocity SpectralCube object of neutral (HI 21cm) or ionized (H-Alpha) gas emission
     Uses output calculated from 'modspectra.cube.EllipticalLBD'
@@ -657,9 +656,6 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
     redden: 'bool', optional, must be keyword
         if True, apply extinction corrections to emission using 3D dustmaps of Marshall et al. (2006)
         implemented via the dustmaps and extinction python packages
-    local_dustmap: 'bool', optional, must be keyword
-        if True, use local copy of dustmap
-        if False, use use web query
     case: 'str', optional, must be keyword
         if species is 'ha', then sets the recombination case to use
         Defaults to case B recombination
@@ -744,12 +740,17 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
             EM = da.from_array(density_gridin *density_gridin * dist * 1000., chunks = da_chunks_xyz)
             if redden:
                 from extinction import fm07 as extinction_law
-                if local_dustmap:
-                    from dustmaps.marshall import MarshallQuery
+                from dustmaps.marshall import MarshallQuery
+                try:
                     marshall = MarshallQuery()
-                else:
-                    from dustmaps.marshall import MarshallWebQuery
-                    marhshall = MarshallWebQuery()
+                except OSError:
+                    print("Local Copy of Marhsall et al (2006) dustmap is unavailable")
+                    from dustmaps.config import config
+                    print("Downloading local copy to {}".format(config['data_dir']))
+                    from dustmaps.marshall import fetch as getMarshall
+                    getMarshall()
+                finally:
+                    marshall = MarshallQuery()
 
                 wave_Ks = 2.17 *u.micron
                 A_KS_to_A_v = 1. / extinction_law(np.array([wave_Ks.to(u.AA).value]), 1.)
@@ -789,12 +790,17 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
             EM = ne.evaluate("density_gridin**2 * dist * 1000.")
             if redden:
                 from extinction import fm07 as extinction_law
-                if local_dustmap:
-                    from dustmaps.marshall import MarshallQuery
+                from dustmaps.marshall import MarshallQuery
+                try:
                     marshall = MarshallQuery()
-                else:
-                    from dustmaps.marshall import MarshallWebQuery
-                    marhshall = MarshallWebQuery()
+                except OSError:
+                    print("Local Copy of Marhsall et al (2006) dustmap is unavailable")
+                    from dustmaps.config import config
+                    print("Downloading local copy to {}".format(config['data_dir']))
+                    from dustmaps.marshall import fetch as getMarshall
+                    getMarshall()
+                finally:
+                    marshall = MarshallQuery()
 
                 wave_Ks = 2.17 *u.micron
                 A_KS_to_A_v = 1. / extinction_law(np.array([wave_Ks.to(u.AA).value]), 1.)
@@ -945,9 +951,6 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
     model_header: 'fits.header'
         Provide header to gather model parameters and information
         only used if EmissionCube is from a model created by this package
-    local_dustmap: 'bool', optional, must be keyword
-        if True, use local copy of dustmap
-        if False, use use web query
     DK19: 'bool'
         if true, will will create default H-Alpha cube with parameters of (Krishnarao et al. 2019)
         if any parameters are already set, they will be used instead
@@ -973,7 +976,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                  species = None, T_gas = None, LSR_options = {}, galcen_options = {}, return_all = False, 
                  LB82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None,
                  LBD_output_in = None, LBD_output_keys_in = None, model_header = None, 
-                 local_dustmap = False, DK19 = False, case = None, **kwargs):
+                 DK19 = False, case = None, **kwargs):
 
         if not meta:
             meta = {}
@@ -1031,6 +1034,8 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                 species = 'ha'
             if not redden:
                 redden = True
+            if not case:
+                case = 'B'
 
 
 
@@ -1197,7 +1202,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                                 self.LBD_output[2], vel_disp, vmin, vmax, 
                                 vel_resolution, L_range.value, B_range.value, visualize = visualize, redden = redden,
                                 species = species, T_gas = T_gas, memmap = memmap, da_chunks_xyz = da_chunks_xyz, 
-                                local_dustmap = local_dustmap, case = case)
+                                case = case)
 
             if memmap:
                 print('Setting up Data Cube')

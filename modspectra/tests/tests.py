@@ -66,6 +66,21 @@ def test_memmap_density():
 		 L_range, B_range, D_range)
 	assert np.allclose(res_memmap.LBD_output[1],res_no_memmap.LBD_output[1])
 
+def test_non_detection():
+	from ..cube import EmissionCube
+	from astropy.coordinates import SkyCoord
+	'''
+	Test that an anti-center pointing returns zero emission
+	'''
+	l = 180. + randn()*130.
+	b = 0. + randn()*90.
+	c = SkyCoord(l = l*u.deg, b = b*u.deg, frame = 'galactic', galcen_distance = 8.127*u.kpc)
+	spec = EmissionCube.create_DK19_spectrum(c, 0.5 * u.deg, local_dustmap = True)
+	assert np.allclose(spec.value, np.zeros_like(spec.value))
+
+
+
+
 
 
 
