@@ -971,7 +971,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                  alpha = None, beta = None, theta = None, 
                  bd_max = None, Hz = None, z_sigma_lim = None, dens0 = None,
                  velocity_factor = None, vel_0 = None, el_constant1 = None, el_constant2 = None, 
-                 vel_disp = None, vmin = None, vmax = None, visualize = False, redden = False,
+                 vel_disp = None, vmin = None, vmax = None, visualize = False, redden = None,
                  flaring = False, flaring_radial = False, min_bd = None,
                  species = None, T_gas = None, LSR_options = {}, galcen_options = {}, return_all = False, 
                  LB82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None,
@@ -1032,7 +1032,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                 theta = 48.5 * u.deg
             if not species:
                 species = 'ha'
-            if not redden:
+            if redden == None:
                 redden = True
             if not case:
                 case = 'B'
