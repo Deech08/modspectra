@@ -34,18 +34,18 @@ env:
         - SETUP_CMD='test'
         - EVENT_TYPE='pull_request push'
 
-        {% if modspectra.include_example_cython_code == 'y' %}
-        # For this package-template, we include examples of Cython modules,
-        # so Cython is required for testing. If your package does not include
-        # Cython code, you can set CONDA_DEPENDENCIES=''
-        - CONDA_DEPENDENCIES='Cython'
-        - CONDA_DEPENDENCIES_DOC='Cython sphinx-astropy'
-        {% else %}
+        # {% if modspectra.include_example_cython_code == 'y' %}
+        # # For this package-template, we include examples of Cython modules,
+        # # so Cython is required for testing. If your package does not include
+        # # Cython code, you can set CONDA_DEPENDENCIES=''
+        # - CONDA_DEPENDENCIES='Cython'
+        # - CONDA_DEPENDENCIES_DOC='Cython sphinx-astropy'
+        # {% else %}
         # List runtime dependencies for the package that are available as conda
         # packages here.
         - CONDA_DEPENDENCIES='astropy sphinx matplotlib numexpr dask scipy'
         - CONDA_DEPENDENCIES_DOC='sphinx-astropy'
-        {% endif %}
+        # {% endif %}
         # List other runtime dependencies for the package that are available as
         # pip packages here.
         - PIP_DEPENDENCIES='spectral-cube'
@@ -68,12 +68,12 @@ env:
 
     matrix:
         # Make sure that egg_info works without dependencies
-        {%- if modspectra.minimum_python_version == "2.7" %}
-        - PYTHON_VERSION=2.7 SETUP_CMD='egg_info'
+        # {%- if modspectra.minimum_python_version == "2.7" %}
+        # - PYTHON_VERSION=2.7 SETUP_CMD='egg_info'
+        # - PYTHON_VERSION=3.7 SETUP_CMD='egg_info'
+        # {%- else %}
         - PYTHON_VERSION=3.7 SETUP_CMD='egg_info'
-        {%- else %}
-        - PYTHON_VERSION=3.7 SETUP_CMD='egg_info'
-        {%- endif %}
+        # {%- endif %}
 
 
 matrix:
@@ -100,10 +100,10 @@ matrix:
         - os: linux
           env: ASTROPY_VERSION=development
                EVENT_TYPE='pull_request push cron'
-        {%- if modspectra.minimum_python_version == "2.7" %}
-        - os: linux
-          env: PYTHON_VERSION=2.7 ASTROPY_VERSION=lts
-        {%- endif %}
+        # {%- if modspectra.minimum_python_version == "2.7" %}
+        # - os: linux
+        #   env: PYTHON_VERSION=2.7 ASTROPY_VERSION=lts
+        # {%- endif %}
         - os: linux
           env: ASTROPY_VERSION=lts
 
