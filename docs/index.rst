@@ -1,8 +1,8 @@
 ModSpectra Documentation
 ========================
 
-The modspectra provides an easy way to create synthetic 3D data cubes of HI 
-and H-Alpha spectra in the Galaxy. This package uses the ``spectral-cube`` 
+The modspectra package provides an easy way to create synthetic 3D data cubes 
+of HI and H-Alpha spectra in the Galaxy. This package uses the ``spectral-cube`` 
 package to handle the data cube and the primary class, ``EmissionCube``, is 
 built around this. The current main features of modspectra are to complement
 the work of Krishnarao, Benjamin, Haffner (2019) on a model of a Tilted 
@@ -45,3 +45,4 @@ Getting started
   :maxdepth: 1
 
   installing.rst
+  creating_reading.rst
