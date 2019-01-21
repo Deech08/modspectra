@@ -411,7 +411,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
             dens_grid = delayed(define_density_grid)(z_coor, z_sigma_lim, bd_grid, 
                                                 bd_max, Hz, dens0)
         else:
-            print('computing Disk r-coordinate')
+            print('Computing Disk r-coordinate')
             with ProgressBar():
                 r_coor = delayed(np.sqrt)(xyz_grid[0,:,:,:]**2 + xyz_grid[1,:,:,:]**2).compute()
             def define_density_grid(z, z_sigma, bd, bdmax, H, density0, radial_coordinate, min_bd = min_bd):
