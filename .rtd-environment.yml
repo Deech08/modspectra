@@ -4,7 +4,7 @@ channels:
     - astropy
 
 dependencies:
-    - python=3.6
+    - python=>3.6
     - sphinx-astropy
     - astropy
     - Cython
@@ -13,7 +13,8 @@ dependencies:
     - scipy
     - numexpr
     - dask
+    - regions
 #   - spectral-cube
 #   - pip:
 #       - dependency_from_pip
-	- spectral-cube
+    - spectral-cube
