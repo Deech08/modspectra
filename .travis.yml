@@ -30,7 +30,7 @@ env:
         - PYTHON_VERSION=3.7
         - NUMPY_VERSION=stable
         - ASTROPY_VERSION=stable
-        # - MAIN_CMD='python setup.py'
+        - MAIN_CMD='python setup.py'
         - SETUP_CMD='test'
         - EVENT_TYPE='pull_request push'
 
@@ -43,12 +43,12 @@ env:
         # {% else %}
         # List runtime dependencies for the package that are available as conda
         # packages here.
-        - CONDA_DEPENDENCIES='astropy sphinx matplotlib numexpr dask scipy'
+        - CONDA_DEPENDENCIES='sphinx matplotlib numexpr dask scipy'
         - CONDA_DEPENDENCIES_DOC='sphinx-astropy'
         # {% endif %}
         # List other runtime dependencies for the package that are available as
         # pip packages here.
-        - PIP_DEPENDENCIES='spectral-cube'
+        - PIP_DEPENDENCIES='spectral-cube astropy'
 
         # Conda packages for affiliated packages are hosted in channel
         # "astropy" while builds for astropy LTS with recent numpy versions
