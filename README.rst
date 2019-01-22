@@ -9,6 +9,10 @@ ModSpectra Documentation
 	:target: https://modspectra.readthedocs.io/en/latest/?badge=latest
 	:alt: Documentation Status
 
+.. image:: https://coveralls.io/repos/github/Deech08/modspectra/badge.svg?branch=master
+	:target: https://coveralls.io/github/Deech08/modspectra?branch=master
+
+
 The modspectra package provides an easy way to create synthetic 3D data cubes 
 of HI and H-Alpha spectra in the Galaxy. This package uses the ``spectral-cube`` 
 package to handle the data cube and the primary class, ``EmissionCube``, is 
