@@ -9,6 +9,9 @@ ModSpectra Documentation
 	:target: https://modspectra.readthedocs.io/en/latest/?badge=latest
 	:alt: Documentation Status
 
+.. image:: https://travis-ci.org/Deech08/modspectra.svg?branch=master
+    :target: https://travis-ci.org/Deech08/modspectra
+
 .. image:: https://coveralls.io/repos/github/Deech08/modspectra/badge.svg?branch=master
 	:target: https://coveralls.io/github/Deech08/modspectra?branch=master
 
