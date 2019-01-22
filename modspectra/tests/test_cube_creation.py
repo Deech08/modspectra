@@ -75,7 +75,7 @@ def test_non_detection():
 	l = 180. + randn()*130.
 	b = 0. + randn()*90.
 	c = SkyCoord(l = l*u.deg, b = b*u.deg, frame = 'galactic', galcen_distance = 8.127*u.kpc)
-	spec = EmissionCube.create_DK19_spectrum(c, 0.5 * u.deg, local_dustmap = True)
+	spec = EmissionCube.create_DK19_spectrum(c, 0.5 * u.deg, redden = False)
 	assert np.allclose(spec.value, np.zeros_like(spec.value))
 
 
