@@ -43,7 +43,7 @@ env:
         # {% else %}
         # List runtime dependencies for the package that are available as conda
         # packages here.
-        - CONDA_DEPENDENCIES='sphinx matplotlib numexpr dask scipy'
+        - CONDA_DEPENDENCIES='sphinx matplotlib numexpr dask scipy extinction'
         - CONDA_DEPENDENCIES_DOC='sphinx-astropy'
         # {% endif %}
         # List other runtime dependencies for the package that are available as
