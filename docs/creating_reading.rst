@@ -56,8 +56,8 @@ Modifying Parameters
 --------------------
 
 You can modify any of the model parameters via keywords to 
-`create_DK19` and `create_LB82`. A full list of the keywords can be found in the 
-:class:`~modspectra.cube.EmissionCube` class page::
+`~modspectra.cube.EmissionCube.create_DK19` and `~modspectra.cube.EmissionCube.create_LB82`. 
+A full list of the keywords can be found in the :class:`~modspectra.cube.EmissionCube` class page::
 
     # Compute H-Alpha cube with no reddening to see what it would appear like 
     # in a Galaxy with no dust

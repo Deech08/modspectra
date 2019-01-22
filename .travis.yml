@@ -48,7 +48,7 @@ env:
         # {% endif %}
         # List other runtime dependencies for the package that are available as
         # pip packages here.
-        - PIP_DEPENDENCIES='spectral-cube astropy'
+        - PIP_DEPENDENCIES='spectral-cube astropy dustmaps'
 
         # Conda packages for affiliated packages are hosted in channel
         # "astropy" while builds for astropy LTS with recent numpy versions
