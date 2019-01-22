@@ -14,7 +14,8 @@ This package has the following dependencies:
 * `numexpr <https://numexpr.readthedocs.io/en/latest/user_guide.html>`_ 2.0 or later
 * `extinction <https://extinction.readthedocs.io/en/latest/>`_>=0.4.0
 * `dustmaps <https://github.com/gregreen/dustmaps>`_>=1.0.3
-* `dask <https://dask.org/>`_ optional
+* `pyregion <https://pyregion.readthedocs.io/en/latest/>`_>=2.0
+* `dask <https://dask.org/>`_ 
 (Used when creating high resolution cubes and memmap = True is set)
 * `Regions <https://astropy-regions.readthedocs.io/en/latest>`_ >=0.3dev, optional
   (Serialises/Deserialises DS9/CRTF region files and handles them. Used when
