@@ -697,6 +697,20 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
     elif not T_gas.unit == u.K:
         T_gas = T_gas.to(u.K)
 
+    if redden:
+        from extinction import fm07 as extinction_law
+        from dustmaps.marshall import MarshallQuery
+        try:
+            marshall = MarshallQuery()
+        except OSError:
+            print("Local Copy of Marhsall et al (2006) dustmap is unavailable")
+            from dustmaps.config import config
+            print("Downloading local copy to {}".format(config['data_dir']))
+            from dustmaps.marshall import fetch as getMarshall
+            getMarshall()
+        finally:
+            marshall = MarshallQuery()
+
 
 
     # Define the lookup table of values of Sigma
@@ -739,18 +753,18 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
                 a_0_constant = 0.1442 * u.R / u.km * u.s
             EM = da.from_array(density_gridin *density_gridin * dist * 1000., chunks = da_chunks_xyz)
             if redden:
-                from extinction import fm07 as extinction_law
-                from dustmaps.marshall import MarshallQuery
-                try:
-                    marshall = MarshallQuery()
-                except OSError:
-                    print("Local Copy of Marhsall et al (2006) dustmap is unavailable")
-                    from dustmaps.config import config
-                    print("Downloading local copy to {}".format(config['data_dir']))
-                    from dustmaps.marshall import fetch as getMarshall
-                    getMarshall()
-                finally:
-                    marshall = MarshallQuery()
+            #     from extinction import fm07 as extinction_law
+            #     from dustmaps.marshall import MarshallQuery
+            #     try:
+            #         marshall = MarshallQuery()
+            #     except OSError:
+            #         print("Local Copy of Marhsall et al (2006) dustmap is unavailable")
+            #         from dustmaps.config import config
+            #         print("Downloading local copy to {}".format(config['data_dir']))
+            #         from dustmaps.marshall import fetch as getMarshall
+            #         getMarshall()
+            #     finally:
+            #         marshall = MarshallQuery()
 
                 wave_Ks = 2.17 *u.micron
                 A_KS_to_A_v = 1. / extinction_law(np.array([wave_Ks.to(u.AA).value]), 1.)
@@ -789,18 +803,18 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
                 a_0_constant = 0.1442 * u.R / u.km * u.s
             EM = ne.evaluate("density_gridin**2 * dist * 1000.")
             if redden:
-                from extinction import fm07 as extinction_law
-                from dustmaps.marshall import MarshallQuery
-                try:
-                    marshall = MarshallQuery()
-                except OSError:
-                    print("Local Copy of Marhsall et al (2006) dustmap is unavailable")
-                    from dustmaps.config import config
-                    print("Downloading local copy to {}".format(config['data_dir']))
-                    from dustmaps.marshall import fetch as getMarshall
-                    getMarshall()
-                finally:
-                    marshall = MarshallQuery()
+                # from extinction import fm07 as extinction_law
+                # from dustmaps.marshall import MarshallQuery
+                # try:
+                #     marshall = MarshallQuery()
+                # except OSError:
+                #     print("Local Copy of Marhsall et al (2006) dustmap is unavailable")
+                #     from dustmaps.config import config
+                #     print("Downloading local copy to {}".format(config['data_dir']))
+                #     from dustmaps.marshall import fetch as getMarshall
+                #     getMarshall()
+                # finally:
+                #     marshall = MarshallQuery()
 
                 wave_Ks = 2.17 *u.micron
                 A_KS_to_A_v = 1. / extinction_law(np.array([wave_Ks.to(u.AA).value]), 1.)
