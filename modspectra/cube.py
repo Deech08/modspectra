@@ -1380,7 +1380,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             except TypeError:
                 hdulist.writeto(filename, clobber=overwrite)
         else:
-            super().write(self, filename, overwrite = overwrite, format = format)
+            super().write(filename, overwrite = overwrite, format = format)
 
 
     # Convenience functions for quickly making DK19 Disk

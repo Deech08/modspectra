@@ -1,0 +1,15 @@
+[report]
+omit =
+    docs/*
+    tests/*
+    *__init__*
+
+exclude_lines =
+    raise NotImplementedError
+    raise ImportError
+    except ImportError
+    def __len__
+    def __repr__
+    logging.warn
+    deprecation_warning
+    deprecated

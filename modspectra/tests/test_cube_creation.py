@@ -76,19 +76,56 @@ def test_memmap_density():
          L_range, B_range, D_range, memmap = True, da_chunks_xyz = 32)
     assert allclose(res_memmap[1],res_no_memmap[1])
 
-def test_non_detection():
+def test_memmap_cube():
     from ..cube import EmissionCube
-    from astropy.coordinates import SkyCoord
-    import astropy.units as u
     from numpy import allclose
     '''
-    Test that an anti-center pointing returns zero emission
+    Ensure memmap and non memmap versions of final Emission Cube are the same
     '''
-    l = 180. + randn()*130.
-    b = 0. + randn()*20.
-    c = SkyCoord(l = l*u.deg, b = b*u.deg, frame = 'galactic', galcen_distance = 8.127*u.kpc)
-    spec = EmissionCube.create_DK19_spectrum(c, 0.5 * u.deg, redden = False)
-    assert allclose(spec.value, np.zeros_like(spec.value))
+    resolution = (32,32,32)
+    memmap_cube = EmissionCube.create_DK19(memmap = True, resolution = resolution, redden = False)
+    cube = EmissionCube.create_DK19(memmap = False, resolution = resolution, redden = False)
+    assert allclose(memmap_cube, cube)
+
+def test_memmap_cube_redden():
+    from ..cube import EmissionCube
+    from numpy import allclose
+    '''
+    Ensure memmap and non memmap versions of final Emission Cube are the same with reddening
+    '''
+    resolution = (32,32,32)
+    memmap_cube = EmissionCube.create_DK19(memmap = True, resolution = resolution, redden = True)
+    cube = EmissionCube.create_DK19(memmap = False, resolution = resolution, redden = True)
+    assert allclose(memmap_cube, cube)
+
+def test_memmap_cube_flaring_radial_false():
+    from ..cube import EmissionCube
+    from numpy import allclose
+    '''
+    Ensure memmap and non memmap versions of final Emission Cube are the same with parameter
+    flaring_radial = False
+    '''
+    resolution = (32,32,32)
+    memmap_cube = EmissionCube.create_DK19(memmap = True, resolution = resolution, 
+        redden = False, flaring_radial = False)
+    cube = EmissionCube.create_DK19(memmap = False, resolution = resolution, 
+        redden = False, flaring_radial = False)
+    assert allclose(memmap_cube, cube)
+
+def test_memmap_cube_hi():
+    from ..cube import EmissionCube
+    from numpy import allclose
+    '''
+    Ensure memmap and non memmap versions of final Emission Cube are the same
+    '''
+    resolution = (32,32,32)
+    memmap_cube = EmissionCube.create_LB82(memmap = True, resolution = resolution)
+    cube = EmissionCube.create_LB82(memmap = False, resolution = resolution)
+    assert allclose(memmap_cube, cube)
+
+
+
+
 
 
 
