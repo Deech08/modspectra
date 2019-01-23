@@ -71,7 +71,7 @@ We can construct our image array using this information and rescaling as we see 
         return low + (high - low) * (data - np.nanmin(data)) / (np.nanmax(data) - np.nanmin(data))
 
     # Set scaled color intensities for Surface Brightness
-    scaled_ha = rescale(0.1, 0.25, integrated_ha.value)
+    scaled_ha = rescale_ha(0.1, 0.25, integrated_ha.value)
 
     # only color places with detectable integrated surface brightness
     scaled_ha[integrated_ha < int_min] = 0.

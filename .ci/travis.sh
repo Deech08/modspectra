@@ -26,6 +26,7 @@ if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
 	pip install healpy==1.12.5
 else
 	pip install healpy
+fi
 pip install dustmaps
 pip install spectral-cube
 pip install --no-deps pyregion
