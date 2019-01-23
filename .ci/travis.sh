@@ -22,7 +22,10 @@ conda install -q numpy=$NUMPY_VERSION scipy setuptools pytest pytest-cov pip sph
 pip install coveralls
 pip install astropy
 pip install extinction
-pip install healpy
+if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+	pip install healpy==1.12.5
+else
+	pip install healpy
 pip install dustmaps
 pip install spectral-cube
 pip install --no-deps pyregion
