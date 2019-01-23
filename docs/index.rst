@@ -48,3 +48,4 @@ Getting started
   creating_reading.rst
   TiltedDisk_coordinates.rst
   ppp_cubes.rst
+  plotting_moments.rst

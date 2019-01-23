@@ -774,7 +774,7 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
                 marshall_AK = da.from_array(marshall(coord.SkyCoord(lbd_coords_withvel)), chunks = da_chunks_xyz*100)
 
                 trans_ha = 10**(-0.4 * A_V_to_A_ha * A_KS_to_A_v * marshall_AK)
-                print('Computed Av')
+                # print('Computed Av')
                 trans_grid = da.swapaxes(trans_ha.T.transpose().reshape(nx,ny,nz), 0,2)
                 EM = delayed(EM * trans_grid)
 
@@ -824,7 +824,7 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
                 marshall_AK = marshall(coord.SkyCoord(lbd_coords_withvel))
 
                 trans_ha = 10**(-0.4 * A_V_to_A_ha * A_KS_to_A_v * marshall_AK)
-                print('Computed Av')
+                # print('Computed Av')
                 trans_grid = np.swapaxes(trans_ha.T.transpose().reshape(nx,ny,nz), 0,2)
                 EM *= trans_grid
 
