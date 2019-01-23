@@ -22,6 +22,7 @@ conda install -q numpy=$NUMPY_VERSION scipy setuptools pytest pytest-cov pip sph
 pip install coveralls
 pip install astropy
 pip install extinction
+pip install healpy
 pip install dustmaps
 pip install spectral-cube
 pip install --no-deps pyregion
