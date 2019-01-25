@@ -157,7 +157,7 @@ class EmissionCubeMixin(object):
 
 
     def lv_plot(self, latitude, swap_axes = False, fig = None, frame_class = RectangularFrame, aspect = 'auto',
-                orientation = 'vertical', vmin = 5., vmax = 500., norm = LogNorm(), cmap = 'YlGnBu_r',
+                orientation = 'vertical', vmin = .5, vmax = 500., norm = LogNorm(), cmap = 'YlGnBu_r',
                 invert_xaxis = False, invert_yaxis = False, spectral_unit = u.km/u.s, over_contour = None, 
                 levels = (0.1, 0.4, 1.8, 3.8, 7., 11., 16., 24.), cmap_contour = 'Reds', 
                 contour_options = {}, **kwargs):

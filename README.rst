@@ -61,7 +61,7 @@ You can also install the latest developer version in a single line with pip::
 Quick Start
 -----------
 
-Here is a simple script demonstrating the modspectra package:
+Here is a simple script demonstrating the modspectra package::
 
 	>>> from modspectra.cube import EmissionCube
 	>>> hi_cube = EmissionCube.create_LB82() # Create HI Model Cube

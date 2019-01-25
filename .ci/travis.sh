@@ -30,6 +30,7 @@ fi
 pip install dustmaps
 pip install spectral-cube
 pip install --no-deps pyregion
+pip install pytest-mpl
 
 # Build the extension
 python setup.py develop
