@@ -25,7 +25,7 @@ install:
     - source .ci/travis.sh
 
 script:
-    - py.test -v modspectra/tests --cov modspectra
+    - py.test -v --mpl modspectra/tests --cov modspectra
 
 after_success:
     - coveralls
