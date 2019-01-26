@@ -163,8 +163,6 @@ def ellipse_equation(bd, el_constant1, el_constant2, bd_max, x_coord, y_coord):
     """
     a = bd *el_constant1 + el_constant2 * bd**2 / bd_max
     result = x_coord**2 / a**2 + y_coord**2 / bd**2 - 1.
-    #result = bd**2 / a**2 * (a**2 - x_coord**2) - y_coord**2
-    #print(result)
     return result
 
 def bd_equation(bd, x_coord, y_coord):
@@ -196,6 +194,12 @@ def bd_solver(ell, xyz, z_sigma_lim, Hz, bd_max, el_constant1, el_constant2):
     Function to solve for the ellipse equation to fit into form of ellipse_equation
     Chooses only to solve the equation numerically when necessary, avoiding the special cases.
     Funciton written in form to use with multiprocessing.pool and functools.partial
+
+    The defining characteristic of the Ellipse is set by the relation between the 
+    semi-major and semi-minor axis with the following equation from Liszt & Burton (1982):
+    ad / bd = el_constant1 + el_constant2 * bd / bd_max
+
+    You can trick the "Ellipse" shape into a "Circle" by setting el_constant1 = 1., el_constant2 = 0.
 
     Parameters
     ----------

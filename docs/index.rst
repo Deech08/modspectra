@@ -49,3 +49,4 @@ Getting started
   TiltedDisk_coordinates.rst
   ppp_cubes.rst
   plotting_moments.rst
+  custom_ppv_cubes.rst
