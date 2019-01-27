@@ -28,7 +28,7 @@ script:
     - py.test -v --mpl modspectra/tests --cov modspectra
 
 after_success:
-    - coveralls
+    - coveralls --rcfile=.coveragerc
 
 # # We set the language to c because python isn't supported on the MacOS X nodes
 # # on Travis. However, the language ends up being irrelevant anyway, since we

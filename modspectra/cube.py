@@ -990,7 +990,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                  bd_max = None, Hz = None, z_sigma_lim = None, dens0 = None,
                  velocity_factor = None, vel_0 = None, el_constant1 = None, el_constant2 = None, 
                  vel_disp = None, vmin = None, vmax = None, visualize = False, redden = None,
-                 flaring = False, flaring_radial = False, min_bd = None,
+                 flaring = None, flaring_radial = None, min_bd = None,
                  species = None, T_gas = None, LSR_options = {}, galcen_options = {}, return_all = False, 
                  LB82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None,
                  LBD_output_in = None, LBD_output_keys_in = None, model_header = None, 
@@ -1019,6 +1019,8 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             beta = 20. * u.deg
             theta = 48.5 * u.deg
             species = 'hi'
+            flaring = False
+            flaring_radial = False
 
         if DK19:
             galcen_distance_factor = 8.127 / 10.
@@ -1054,6 +1056,10 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                 redden = True
             if not case:
                 case = 'B'
+            if flaring == None:
+                flaring = 2.05
+            if flaring_radial == None:
+                flaring_radial = True
 
 
 

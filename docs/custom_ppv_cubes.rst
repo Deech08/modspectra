@@ -170,7 +170,7 @@ rest of the spectral-cube pacakge tools and custom methods from this package::
     >>> ax = fig.add_subplot(projection = cube_moment_map.wcs)
 
     >>> im = ax.imshow(cube_moment_map.data, vmin = -300, vmax = 300, cmap = 'RdBu_r')
-    >>> plt.colorbar(im)
+    >>> plt.colorbar(im, label = "Velocity (km/s)")
 
 .. image:: images/test_ring.png
    :width: 600
