@@ -540,25 +540,67 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
         # Create grid of ad values (semi-major axis) derived from bd values
         ad_grid = ne.evaluate("bd_grid * (el_constant1 + el_constant2 * bd_grid / bd_max)")
 
+        z_coor = xyz_grid[2,:,:,:]
         # Create grid of density values for the Elliptical Disk, mathcing original lbd_grid object
-        if flaring == False:
-            def define_density_grid(z,z_sigma, bd, bdmax, H, density0):
+        if (flaring == False) & (flaring_radial == False):
+            def define_density_grid(z,z_sigma, bd, bdmax, H, density0, min_bd = min_bd):
                 #density[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] = density0 * \
                         #np.exp(-0.5 * (z[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] / H)**2)
-                outside = (z > z_sigma) | (bd > bdmax)
-                density = ne.evaluate("density0 * exp(-0.5 * (z / H)**2)")
+                outside = (z > z_sigma*H) | (bd > bdmax)
+                if min_bd != None:
+                    outside |= bd < min_bd
+                density = density0 * np.exp(-0.5 * (z / H)**2)
                 density[outside] = 0.0
                 return density
-        else:
-            def define_density_grid(z, z_sigma, bd, bdmax, H, density0):
-                outside = (z > z_sigma) | (bd > bdmax)
-                H_val = H + H * (bd/bdmax * flaring)
-                density = ne.evaluate("density0 * exp(-0.5 * (z / H_val)**2)")
-                density[outside] = 0.0
-                return density
+            dens_grid = define_density_grid(z_coor, z_sigma_lim, bd_grid, 
+                                                bd_max, Hz, dens0)
 
-        z_coor = xyz_grid[2,:,:,:]
-        dens_grid = define_density_grid(z_coor, z_sigma_lim, bd_grid, bd_max, Hz, dens0)
+        elif flaring_radial == False:
+            def define_density_grid(z, z_sigma, bd, bdmax, H, density0, min_bd = min_bd):
+                outside = (bd > bdmax)
+                if min_bd != None:
+                    outside |= bd < min_bd
+                slope = H * (flaring - 1.) / bdmax
+                H_val = slope * bd + H
+                density = density0 * np.exp(-0.5 * (z / H_val)**2) / (H_val / H)
+                density[outside] = 0.0
+                return density
+            dens_grid = define_density_grid(z_coor, z_sigma_lim, bd_grid, 
+                                                bd_max, Hz, dens0)
+
+        else:
+            r_coor = delayed(np.sqrt)(xyz_grid[0,:,:,:]**2 + xyz_grid[1,:,:,:]**2).compute()
+            def define_density_grid(z, z_sigma, bd, bdmax, H, density0, radial_coordinate, min_bd = min_bd):
+                outside = (bd > bdmax)
+                if min_bd != None:
+                    outside |= bd < min_bd
+                admax = bdmax * (el_constant1 + el_constant2)
+                slope = H * (flaring - 1.) / admax
+                H_val = slope * r_coor + H
+                density = density0 * np.exp(-0.5 * (z / H_val)**2) / (H_val / H)
+                density[outside] = 0.0
+                return density
+            dens_grid = define_density_grid(z_coor, z_sigma_lim, bd_grid, 
+                                                bd_max, Hz, dens0, r_coor)
+
+
+        # if flaring == False:
+        #     def define_density_grid(z,z_sigma, bd, bdmax, H, density0):
+        #         #density[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] = density0 * \
+        #                 #np.exp(-0.5 * (z[(np.abs(z)<(z_sigma * H)) & (bd<=bdmax)] / H)**2)
+        #         outside = (z > z_sigma) | (bd > bdmax)
+        #         density = ne.evaluate("density0 * exp(-0.5 * (z / H)**2)")
+        #         density[outside] = 0.0
+        #         return density
+        # else:
+        #     def define_density_grid(z, z_sigma, bd, bdmax, H, density0):
+        #         outside = (z > z_sigma) | (bd > bdmax)
+        #         H_val = H + H * (bd/bdmax * flaring)
+        #         density = ne.evaluate("density0 * exp(-0.5 * (z / H_val)**2)")
+        #         density[outside] = 0.0
+        #         return density
+
+        # dens_grid = define_density_grid(z_coor, z_sigma_lim, bd_grid, bd_max, Hz, dens0)
         # dens_grid[(np.abs(z_coor)<(z_sigma_lim * Hz)) & (bd_grid<=bd_max)] = dens0 * \
         #             np.exp(-0.5 * (z_coor[(np.abs(z_coor)<(z_sigma_lim * Hz)) & (bd_grid<=bd_max)] / Hz)**2)
 
@@ -613,7 +655,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 
 def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
                     vel_resolution, L_range, B_range, species = 'hi', visualize = False,
-                    T_gas = 120. *u.K, memmap = False, da_chunks_xyz = 50, redden = False, case = 'B'):
+                    T_gas = 120. *u.K, memmap = False, da_chunks_xyz = 50, redden = None, case = 'B'):
     """
     Creates a Longitude-Latitude-Velocity SpectralCube object of neutral (HI 21cm) or ionized (H-Alpha) gas emission
     Uses output calculated from 'modspectra.cube.EllipticalLBD'
@@ -833,7 +875,7 @@ def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vma
                 EM *= trans_grid
 
             emission_cube = np.einsum('jkli, jkl->ijkl', gaussian_cells, 
-                                        a_0_constant * EM/ vel_disp.value * (T_gas/10.**4)**(b_constant)).sum(axis = 1)
+                                        a_0_constant * EM/ vel_disp.value * (T_gas.value/10.**4)**(b_constant)).sum(axis = 1)
         
     # Create WCS Axes
     DBL_wcs = wcs.WCS(naxis = 3)
@@ -1050,11 +1092,11 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                 beta = 20. * u.deg
             if not theta:
                 theta = 48.5 * u.deg
-            if not species:
+            if species == None:
                 species = 'ha'
             if redden == None:
                 redden = True
-            if not case:
+            if not case == 'A':
                 case = 'B'
             if flaring == None:
                 flaring = 2.05
@@ -1075,7 +1117,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                 B_range = [-8,8] * u.deg
             if not D_range:
                 D_range = [5,13] * u.kpc
-            if not species:
+            if species == None:
                 species = 'hi'
             if not vmin:
                 vmin = -325. * u.km/u.s
