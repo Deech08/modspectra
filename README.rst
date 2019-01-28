@@ -12,7 +12,7 @@ ModSpectra Documentation
 .. image:: https://travis-ci.org/Deech08/modspectra.svg?branch=master
     :target: https://travis-ci.org/Deech08/modspectra
 
-.. image:: https://coveralls.io/repos/github/Deech08/modspectra/badge.svg?branch=master
+.. image:: https://coveralls.io/repos/github/Deech08/modspectra/badge.svg?branch=master&service=github
 	:target: https://coveralls.io/github/Deech08/modspectra?branch=master
 
 
