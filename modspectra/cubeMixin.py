@@ -106,9 +106,9 @@ class EmissionCubeMixin(object):
         """
         if not isinstance(radius, u.Quantity):
             radius = radius * u.deg
-        if not coordinate:
+        if coordinate == None:
             if (longitude == None) | (latitude == None):
-                raise ValueError
+                raise TypeError
                 print("Must specify a coordinate as a SkyCoord object or by Galactic Longitude and Galactic Latitude.")
             else:
                 if not isinstance(longitude, u.Quantity):
@@ -144,7 +144,9 @@ class EmissionCubeMixin(object):
                     subcube = self.subcube_from_ds9region(ds9_str)
         else:
             coordinate_gal = coordinate.transform_to('galactic')
-            ds9_str = 'Galactic; circle({0:.3}, {1:.4}, {2:.4}")'.format(coordinate_gal.l.value, coordinate_gal.b.value, radius.to(u.arcsec).value)
+            ds9_str = 'Galactic; circle({0:.3}, {1:.4}, {2:.4}")'.format(coordinate_gal.l.wrap_at("180d").value, 
+                                                                         coordinate_gal.b.value, 
+                                                                         radius.to(u.arcsec).value)
 
             if reduce_cube:
                 from astropy.coordinates import Angle
@@ -155,8 +157,8 @@ class EmissionCubeMixin(object):
                 lat_slice_down = find_nannearest_idx(lat_axis_values, latitude-radius*1.5)[0]
                 lat_slices = np.sort([lat_slice_up, lat_slice_down])
                 if lat_slices[0] == lat_slices[1]:
-                    lat_slices[1] += 1
-                    lat_slices[0] += 1
+                    lat_slices[1] += 2
+                    lat_slices[0] += 2
 
                 _, lat_unit, lon_axis_values = self.world[int(self.shape[0]/2), int(self.shape[1]/2), :]
                 # Ensure all angles are wrapped at 180
@@ -166,8 +168,8 @@ class EmissionCubeMixin(object):
                 lon_slice_down = find_nannearest_idx(lon_axis_values, longitude-radius*1.5)[0]
                 lon_slices = np.sort([lon_slice_up, lon_slice_down])
                 if lon_slices[0] == lon_slices[1]:
-                    lon_slices[1] += 1
-                    lon_slices[0] -= 1
+                    lon_slices[1] += 2
+                    lon_slices[0] -= 2
 
                 smaller_cube = self[:,lat_slices[0]:lat_slices[1], lon_slices[0]:lon_slices[1]]
                 subcube = smaller_cube.subcube_from_ds9region(ds9_str)

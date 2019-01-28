@@ -126,6 +126,72 @@ def test_memmap_cube_hi():
     cube = EmissionCube.create_LB82(memmap = False, resolution = resolution)
     assert allclose(memmap_cube, cube)
 
+def test_return_all():
+    from ..cube import EmissionCube
+    '''
+    Ensure return_all functionality works by checking output keys in cube
+    '''
+    resolution = (32,32,32)
+    memmap_cube = EmissionCube.create_LB82(memmap = True, resolution = resolution, return_all = True)
+    cube = EmissionCube.create_LB82(memmap = False, resolution = resolution, return_all = True)
+    assert memmap_cube.LBD_output_keys == cube.LBD_output_keys
+
+def test_min_bd():
+    from ..cube import EmissionCube
+    from numpy import allclose
+    '''
+    Ensure min_bd works to create a ring
+    '''
+    resolution = (32,32,32)
+    min_bd = random() * 0.3
+    memmap_cube = EmissionCube.create_LB82(memmap = True, resolution = resolution, min_bd = min_bd)
+    cube = EmissionCube.create_LB82(memmap = False, resolution = resolution, min_bd = min_bd)
+    assert allclose(memmap_cube, cube)
+
+def test_unit_ranges():
+    from ..cube import EmissionCube
+    from numpy import allclose
+    import astropy.units as u
+    '''
+    Ensure different units input as cube ranges still work
+    '''
+    resolution = (32,32,32)
+    L_range = [-10,10] * u.deg
+    B_range = [-8,8] * u.deg
+    D_range = [5,10] * u.kpc
+    cube = EmissionCube.create_LB82(resolution = resolution, 
+                                    L_range = L_range, 
+                                    B_range = B_range, 
+                                    D_range = D_range)
+    cube_dif_unit = EmissionCube.create_LB82(resolution = resolution, 
+                                             L_range = L_range.to(u.arcmin), 
+                                             B_range = B_range.to(u.arcsec), 
+                                             D_range = D_range.to(u.pc))
+    assert allclose(cube, cube_dif_unit)
+
+def test_angle_units():
+    from ..cube import EmissionCube
+    from numpy import allclose
+    import astropy.units as u
+    '''
+    Ensure different units input as cube ranges still work
+    '''
+    resolution = (32,32,32)
+    alpha = 13.5 * u.deg
+    beta = 20. * u.deg
+    theta = 48.5 * u.deg
+    cube = EmissionCube.create_LB82(resolution = resolution, 
+                                    alpha = alpha.value, 
+                                    beta = beta.value, 
+                                    theta = theta.value)
+    cube_dif_unit = EmissionCube.create_LB82(resolution = resolution, 
+                                             alpha = alpha.to(u.arcmin), 
+                                             beta = beta.to(u.arcsec), 
+                                             theta = theta.to(u.rad))
+    assert allclose(cube, cube_dif_unit)
+
+
+
 
 
 

@@ -165,28 +165,6 @@ def ellipse_equation(bd, el_constant1, el_constant2, bd_max, x_coord, y_coord):
     result = x_coord**2 / a**2 + y_coord**2 / bd**2 - 1.
     return result
 
-def bd_equation(bd, x_coord, y_coord):
-    """
-    Equation of ellipse in the case that the provided point lies on the minor axis
-    Function serves to be used in scipy.optimize.brenth to solve for bd 
-
-    Parameters
-    ----------
-    bd: 'number'
-        semi-minor axis of ellipse
-    x_coord: 'number, ndarray'
-        x-coordinate in ellipse
-    y_coord: 'number, ndarray'
-        y-coordinate in ellipse 
-
-    I think this is a useless equation... consider removing entirely!
-    """
-    a = x_coord
-    result = x_coord**2 / a**2 + y_coord**2 / bd**2 - 1.
-    #result = bd**2 / a**2 * (a**2 - x_coord**2) - y_coord**2
-    #print(result)
-    return result
-
 # the semi-minor axis parameter, bd, can not be analytically solved
 
 def bd_solver(ell, xyz, z_sigma_lim, Hz, bd_max, el_constant1, el_constant2):

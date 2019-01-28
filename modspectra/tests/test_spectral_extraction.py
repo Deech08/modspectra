@@ -36,7 +36,7 @@ def test_coord_lon_lat():
         l = randn()*3.
         b = randn()*3.
     radius = 1.5 * u.deg
-    c = SkyCoord(l = l*u.deg, b = b*u.deg, frame = 'galactic', galcen_distance = 8.127*u.kpc)
+    c = SkyCoord(l = l*u.deg, b = b*u.deg, frame = 'galactic')
     spec = cube.extract_beam(longitude = l, latitude = b, radius = radius)
     spec2 = cube.extract_beam(coordinate = c, radius = radius.value)
     assert np.allclose(spec.value, spec2.value)
@@ -52,7 +52,7 @@ def test_coord_reduce():
         l = randn()*3.
         b = randn()*3.
     radius = 1.5 * u.deg
-    c = SkyCoord(l = l*u.deg, b = b*u.deg, frame = 'galactic', galcen_distance = 8.127*u.kpc)
+    c = SkyCoord(l = l*u.deg, b = b*u.deg, frame = 'galactic')
     spec = cube.extract_beam(coordinate = c, reduce_cube = True, radius = radius)
     spec2 = cube.extract_beam(coordinate = c, reduce_cube = True, radius = radius)
     assert np.allclose(spec.value, spec2.value)
@@ -69,6 +69,18 @@ def test_extract_spec():
     _, spec = cube.extract_spectrum(l, b)
     _, spec2 = cube.extract_spectrum(l*u.deg, b*u.deg)
     assert np.allclose(spec.value, spec2.value)
+
+def test_no_coordinate_fail():
+    '''
+    Spectral extraction should fail if no coordinate is specified
+    '''
+    try: 
+        cube.extract_beam()
+    except TypeError:
+        assert True
+    else:
+        assert False
+
 
 def test_ad_equation():
     '''
