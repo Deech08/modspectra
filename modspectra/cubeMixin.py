@@ -152,7 +152,7 @@ class EmissionCubeMixin(object):
 
             if reduce_cube:
                 from astropy.coordinates import Angle
-                longitude = coordinate.l
+                longitude = coordinate.l.wrap_at("180d")
                 latitude = coordinate.b
                 vel_unit, lat_axis_values, lon_unit = self.world[int(self.shape[0]/2), :, int(self.shape[2]/2)]
                 lat_slice_up = find_nannearest_idx(lat_axis_values, latitude+radius*1.5)[0]
@@ -166,7 +166,6 @@ class EmissionCubeMixin(object):
                 _, lat_unit, lon_axis_values = self.world[int(self.shape[0]/2), int(self.shape[1]/2), :]
                 # Ensure all angles are wrapped at 180
                 lon_axis_values = Angle(lon_axis_values).wrap_at("180d")
-                longitude = Angle(longitude).wrap_at("180d")
                 lon_slice_up = find_nannearest_idx(lon_axis_values, longitude+radius*1.5)[0]
                 lon_slice_down = find_nannearest_idx(lon_axis_values, longitude-radius*1.5)[0]
                 lon_slices = np.sort([lon_slice_up, lon_slice_down])

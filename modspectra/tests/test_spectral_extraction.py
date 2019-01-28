@@ -18,7 +18,7 @@ def test_reduce_cube():
     '''
     l = randn()*3.
     b = randn()*3.
-    while (np.abs(l) > 4) | (np.abs(b) > 4):
+    while (np.abs(l) > 3) | (np.abs(b) > 3):
         l = randn()*3.
         b = randn()*3.
     radius = 1.5 * u.deg
@@ -35,7 +35,7 @@ def test_coord_lon_lat():
     '''
     l = randn()*3.
     b = randn()*3.
-    while (np.abs(l) > 4) | (np.abs(b) > 4):
+    while (np.abs(l) > 3) | (np.abs(b) > 3):
         l = randn()*3.
         b = randn()*3.
     radius = 1.5 * u.deg
@@ -51,7 +51,7 @@ def test_coord_reduce():
     '''
     l = randn()*3.
     b = randn()*3.
-    while (np.abs(l) > 4) | (np.abs(b) > 4):
+    while (np.abs(l) > 3) | (np.abs(b) > 3):
         l = randn()*3.
         b = randn()*3.
     radius = 1.5 * u.deg
@@ -66,7 +66,7 @@ def test_extract_spec():
     '''
     l = randn()*3.
     b = randn()*3.
-    while (np.abs(l) > 4) | (np.abs(b) > 4):
+    while (np.abs(l) > 3) | (np.abs(b) > 3):
         l = randn()*3.
         b = randn()*3.
     _, spec = cube.extract_spectrum(l, b)
@@ -101,7 +101,7 @@ def test_reduce_small_radius():
     '''
     l = randn()*3.
     b = randn()*3.
-    while (np.abs(l) > 4) | (np.abs(b) > 4):
+    while (np.abs(l) > 3) | (np.abs(b) > 3):
         l = randn()*3.
         b = randn()*3.
     radius = 0.01 * u.deg
