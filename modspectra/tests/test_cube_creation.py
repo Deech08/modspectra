@@ -2,6 +2,8 @@ import pytest
 from numpy.random import randn
 from numpy.random import random
 import numpy as np
+# Set up the random number generator.
+np.random.seed(1234)
 
 
 def test_bd_solver_along_major_axis():
@@ -89,6 +91,9 @@ def test_memmap_cube():
 
 # Redden will not work for now
 # Can't figure out how to fetch the Marshall map on travis
+##### Note to self / call for help: Is there a simple way to download the data file then 
+##### use it for the test alone. Trying to avoid attaching the data file to the package...
+
 # Test will pass if run locally
 # def test_memmap_cube_redden():
 #     from ..cube import EmissionCube
@@ -190,16 +195,62 @@ def test_angle_units():
                                              theta = theta.to(u.rad))
     assert allclose(cube, cube_dif_unit)
 
+def test_caseA():
+    from ..cube import EmissionCube
+    from numpy import allclose
+    '''
+    Ensure memmap and non memmap versions of final Emission Cube are the same with case A 
+    '''
+    resolution = (32,32,32)
+    memmap_cube = EmissionCube.create_DK19(memmap = True, resolution = resolution, 
+                                            redden = False, case = 'A')
+    cube = EmissionCube.create_DK19(memmap = False, resolution = resolution, 
+                                    redden = False, case = 'A')
+    assert allclose(memmap_cube, cube)
 
+def test_parameter_units():
+    from ..cube import EmissionCube
+    from numpy import allclose
+    import astropy.units as u
+    '''
+    Ensure default units and conversions are made for other parameters of model
+    '''
+    resolution = (32,32,32)
+    # Set parameters
+    bd_max = 0.2 + random() * 0.3
+    bd_max *= u.kpc
+    Hz = 0.05 + random() * 0.2
+    Hz *= u.kpc
+    dens0 = 0.2 + random() * 0.2
+    dens0 *= (u.cm)**-3
+    vel_0 = 350 + random() * 20.
+    vel_0 *= u.km/u.s
+    vel_disp = 7 + random() * 3.
+    vel_disp *= u.km/u.s
+    vmin = -340 - random() * 20.
+    vmin *= u.km/u.s
+    vmax = 340 + random() * 20.
+    vmax *= u.km/u.s
 
+    vel_resolution = 200
 
-
-
-
-
-
-
-
-
-
+    cube = EmissionCube.create_LB82(resolution = resolution, 
+                                   bd_max = bd_max.value, 
+                                   Hz = Hz.value, 
+                                   dens0 = dens0.value, 
+                                   vel_0 = vel_0.value, 
+                                   vel_disp = vel_disp.value, 
+                                   vmin = vmin.value, 
+                                   vmax = vmax.value, 
+                                   vel_resolution = vel_resolution)
+    cube_dif_unit = EmissionCube.create_LB82(resolution = resolution,
+                                             bd_max = bd_max.to(u.km), 
+                                             Hz = Hz.to(u.pc), 
+                                             dens0 = dens0.to((u.m)**-3), 
+                                             vel_0 = vel_0.to(u.m/u.s), 
+                                             vel_disp = vel_disp.to(u.kpc/u.Gyr), 
+                                             vmin = vmin.to(u.cm/u.s), 
+                                             vmax = vmax.to(u.km/u.yr), 
+                                             vel_resolution = vel_resolution)
+    assert allclose(cube, cube_dif_unit)
 

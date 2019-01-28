@@ -1,7 +1,10 @@
 import pytest
+
 from numpy.random import randn
 from numpy.random import random
 import numpy as np
+# Set up the random number generator.
+np.random.seed(1234)
 
 from ..cube import EmissionCube
 import astropy.units as u
@@ -54,7 +57,7 @@ def test_coord_reduce():
     radius = 1.5 * u.deg
     c = SkyCoord(l = l*u.deg, b = b*u.deg, frame = 'galactic')
     spec = cube.extract_beam(coordinate = c, reduce_cube = True, radius = radius)
-    spec2 = cube.extract_beam(coordinate = c, reduce_cube = True, radius = radius)
+    spec2 = cube.extract_beam(coordinate = c, reduce_cube = False, radius = radius)
     assert np.allclose(spec.value, spec2.value)
 
 def test_extract_spec():
@@ -90,3 +93,26 @@ def test_ad_equation():
     ad = cube.ad(bd)
     ad2 = cube.ad(bd*u.kpc)
     assert np.allclose(ad.value, ad2.value)
+
+def test_reduce_small_radius():
+    from astropy.coordinates import SkyCoord
+    '''
+    Ensure small radii results in warning and raises ValueError
+    '''
+    l = randn()*3.
+    b = randn()*3.
+    while (np.abs(l) > 4) | (np.abs(b) > 4):
+        l = randn()*3.
+        b = randn()*3.
+    radius = 0.01 * u.deg
+    c = SkyCoord(l = l*u.deg, b = b*u.deg, frame = 'galactic')
+    try:
+        spec = cube.extract_beam(coordinate = c, reduce_cube = True, radius = radius)
+    except ValueError:
+        assert True
+    else:
+        assert False
+
+
+
+

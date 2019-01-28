@@ -124,6 +124,7 @@ class EmissionCubeMixin(object):
                     lat_slice_down = find_nannearest_idx(lat_axis_values, latitude-radius*1.5)[0]
                     lat_slices = np.sort([lat_slice_up, lat_slice_down])
                     if np.abs(lat_slices[0] - lat_slices[1]) < 3:
+                        logging.warning("Specified beam radius is smaller than cube resolution in latitude")
                         lat_slices[1] += 2
                         lat_slices[0] -= 2 
 
@@ -135,6 +136,7 @@ class EmissionCubeMixin(object):
                     lon_slice_down = find_nannearest_idx(lon_axis_values, longitude-radius*1.5)[0]
                     lon_slices = np.sort([lon_slice_up, lon_slice_down])
                     if np.abs(lon_slices[0] - lon_slices[1]) < 3:
+                        logging.warning("Specified beam radius is smaller than cube resolution in longitude")
                         lon_slices[1] += 2
                         lon_slices[0] -= 2
 
@@ -156,7 +158,8 @@ class EmissionCubeMixin(object):
                 lat_slice_up = find_nannearest_idx(lat_axis_values, latitude+radius*1.5)[0]
                 lat_slice_down = find_nannearest_idx(lat_axis_values, latitude-radius*1.5)[0]
                 lat_slices = np.sort([lat_slice_up, lat_slice_down])
-                if lat_slices[0] == lat_slices[1]:
+                if np.abs(lat_slices[0] - lat_slices[1]) < 3:
+                    logging.warning("Specified beam radius is smaller than cube resolution in latitude")
                     lat_slices[1] += 2
                     lat_slices[0] += 2
 
@@ -167,7 +170,8 @@ class EmissionCubeMixin(object):
                 lon_slice_up = find_nannearest_idx(lon_axis_values, longitude+radius*1.5)[0]
                 lon_slice_down = find_nannearest_idx(lon_axis_values, longitude-radius*1.5)[0]
                 lon_slices = np.sort([lon_slice_up, lon_slice_down])
-                if lon_slices[0] == lon_slices[1]:
+                if np.abs(lon_slices[0] - lon_slices[1]) < 3:
+                    logging.warning("Specified beam radius is smaller than cube resolution in longitude")
                     lon_slices[1] += 2
                     lon_slices[0] -= 2
 

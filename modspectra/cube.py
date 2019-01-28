@@ -1022,53 +1022,66 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         # Define Burton & Liszt 1982 parameters if needed
         if LB82:
             galcen_distance_factor = 8.127 / 10.
-            el_constant1 = 1.6
-            el_constant2 = 1.5
-            T_gas = 120. * u.K
-            bd_max = 0.6 * u.kpc * galcen_distance_factor
-            Hz = 0.1 * u.kpc * galcen_distance_factor
-            z_sigma_lim = 3
-            dens0 = 0.33 * 1/u.cm/u.cm/u.cm
-            vel_0 = 360.*u.km/u.s
-            velocity_factor = 0.1
-            vel_disp = 9 * u.km/u.s
-            el_constant1 = 1.6
-            el_constant2 = 1.5
-            T_gas = 120. * u.K
-            alpha = 13.5 * u.deg
-            beta = 20. * u.deg
-            theta = 48.5 * u.deg
-            species = 'hi'
-            flaring = False
-            flaring_radial = False
+            if el_constant1 == None:
+                el_constant1 = 1.6
+            if el_constant2 == None:
+                el_constant2 = 1.5
+            if T_gas == None:
+                T_gas = 120. * u.K
+            if bd_max == None:
+                bd_max = 0.6 * u.kpc * galcen_distance_factor
+            if Hz == None:
+                Hz = 0.1 * u.kpc * galcen_distance_factor
+            if z_sigma_lim == None:
+                z_sigma_lim = 3
+            if dens0 == None:
+                dens0 = 0.33 * 1/u.cm/u.cm/u.cm
+            if vel_0 == None:
+                vel_0 = 360.*u.km/u.s
+            if velocity_factor == None:
+                velocity_factor = 0.1
+            if vel_disp == None:
+                vel_disp = 9 * u.km/u.s
+            if alpha == None:
+                alpha = 13.5 * u.deg
+            if beta == None:
+                beta = 20. * u.deg
+            if theta == None:
+                theta = 48.5 * u.deg
+            if species == None:
+                species = 'hi'
+            if flaring == None:
+                flaring = False
+            if flaring_radial == None:
+                flaring_radial = False
 
         if DK19:
             galcen_distance_factor = 8.127 / 10.
-            if not el_constant1:
+            if el_constant1 == None:
                 el_constant1 = 1.6
-            if not el_constant2:
+            if el_constant2 == None:
                 el_constant2 = 1.5
-            if not T_gas:
+            if T_gas == None:
                 T_gas = 8000. * u.K
             if not bd_max:
                 bd_max = 0.6 * u.kpc * galcen_distance_factor
-            if not Hz:
+            if Hz == None:
                 Hz = 0.26 * u.kpc 
-            if not z_sigma_lim:
+            if z_sigma_lim == None:
                 z_sigma_lim = 3
-            if not dens0:
+            if dens0 == None:
                 dens0 = 0.39 * 1/u.cm/u.cm/u.cm
-            if not vel_0:
+            if vel_0 == None:
                 vel_0 = 360.*u.km/u.s
-            if not velocity_factor:
+            if velocity_factor == None:
                 velocity_factor = 0.1
-            if not vel_disp:
+            if vel_disp == None:
                 vel_disp = 12. * u.km/u.s
-            if not alpha:
+            if alpha == None:
                 alpha = 13.5 * u.deg
-            if not beta:
+            if beta == None:
                 beta = 20. * u.deg
-            if not theta:
+            if theta == None:
                 theta = 48.5 * u.deg
             if species == None:
                 species = 'ha'
@@ -1133,7 +1146,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                 alpha = alpha.to(u.deg)
 
             if not isinstance(beta, u.Quantity):
-                theta = u.Quantity(beta, unit = u.deg)
+                beta = u.Quantity(beta, unit = u.deg)
                 logging.warning("No units specified for Beta, assuming "
                         "{}".format(beta.unit))
             elif not beta.unit == u.deg:
@@ -1478,7 +1491,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             resolution across distance dimension
         """
         if not isinstance(coordinate, coord.SkyCoord):
-            raise ValueError
+            raise TypeError
             print("Input coordinate must be a SkyCoord object")
         elif not isinstance(coordinate.galcen_distance, u.Quantity):
             coordinate.galcen_distance = 8.127 * u.kpc

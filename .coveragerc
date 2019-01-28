@@ -2,7 +2,12 @@
 omit =
     docs/*
     tests/*
+    */tests/*
     *__init__*
+    modspectra/conftest.py
+    modspectra/version.py
+    modspectra/cython_version.py
+    modspectra/_astropy_init.py
 
 exclude_lines =
     pragma: no cover
