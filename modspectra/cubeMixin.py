@@ -59,10 +59,14 @@ class EmissionCubeMixin(object):
         if not isinstance(latitude, u.Quantity):
             latitude = latitude * u.deg
 
+        from astropy.coordinates import Angle
         # find index of closest value
         vel_unit, lat_axis_values, lon_unit = self.world[int(self.shape[0]/2), :, int(self.shape[2]/2)]
         lat_slice = find_nannearest_idx(lat_axis_values, latitude)[0]
         _, lat_unit, lon_axis_values = self.world[int(self.shape[0]/2), int(self.shape[1]/2), :]
+        # Ensure all angles are wrapped at 180
+        lon_axis_values = Angle(lon_axis_values).wrap_at("180d")
+        longitude = Angle(longitude).wrap_at("180d")
         lon_slice = find_nannearest_idx(lon_axis_values, longitude)[0]
 
         # return results
@@ -103,7 +107,7 @@ class EmissionCubeMixin(object):
         if not isinstance(radius, u.Quantity):
             radius = radius * u.deg
         if not coordinate:
-            if not longitude & latitude:
+            if (longitude == None) | (latitude == None):
                 raise ValueError
                 print("Must specify a coordinate as a SkyCoord object or by Galactic Longitude and Galactic Latitude.")
             else:
@@ -114,17 +118,27 @@ class EmissionCubeMixin(object):
                 
                 ds9_str = 'Galactic; circle({0:.3}, {1:.4}, {2:.4}")'.format(longitude.value, latitude.value, radius.to(u.arcsec).value)
                 if reduce_cube:
+                    from astropy.coordinates import Angle
                     vel_unit, lat_axis_values, lon_unit = self.world[int(self.shape[0]/2), :, int(self.shape[2]/2)]
-                    lat_slice_up = find_nannearest_idx(lat_axis_values, latitude+radius*1.2)[0]
-                    lat_slice_down = find_nannearest_idx(lat_axis_values, latitude-radius*1.2)[0]
-                    lat_slices = np.sort([lat_slices_up, lat_slices_down])
+                    lat_slice_up = find_nannearest_idx(lat_axis_values, latitude+radius*1.5)[0]
+                    lat_slice_down = find_nannearest_idx(lat_axis_values, latitude-radius*1.5)[0]
+                    lat_slices = np.sort([lat_slice_up, lat_slice_down])
+                    if np.abs(lat_slices[0] - lat_slices[1]) < 3:
+                        lat_slices[1] += 2
+                        lat_slices[0] -= 2 
 
                     _, lat_unit, lon_axis_values = self.world[int(self.shape[0]/2), int(self.shape[1]/2), :]
-                    lon_slice_up = find_nannearest_idx(lon_axis_values, longitude+radius*1.2)[0]
-                    lon_slice_down = find_nannearest_idx(lon_axis_values, longitude-radius*1.2)[0]
-                    lon_slices = np.sort([lon_slices_up, lon_slices_down])
+                    # Ensure all angles are wrapped at 180
+                    lon_axis_values = Angle(lon_axis_values).wrap_at("180d")
+                    longitude = Angle(longitude).wrap_at("180d")
+                    lon_slice_up = find_nannearest_idx(lon_axis_values, longitude+radius*1.5)[0]
+                    lon_slice_down = find_nannearest_idx(lon_axis_values, longitude-radius*1.5)[0]
+                    lon_slices = np.sort([lon_slice_up, lon_slice_down])
+                    if np.abs(lon_slices[0] - lon_slices[1]) < 3:
+                        lon_slices[1] += 2
+                        lon_slices[0] -= 2
 
-                    smaller_cube = cube[:,lat_slices[0]:lat_slices[1], lon_slices[0]:lon_slices[1]]
+                    smaller_cube = self[:,lat_slices[0]:lat_slices[1], lon_slices[0]:lon_slices[1]]
                     subcube = smaller_cube.subcube_from_ds9region(ds9_str)
                 else:
                     subcube = self.subcube_from_ds9region(ds9_str)
@@ -133,19 +147,29 @@ class EmissionCubeMixin(object):
             ds9_str = 'Galactic; circle({0:.3}, {1:.4}, {2:.4}")'.format(coordinate_gal.l.value, coordinate_gal.b.value, radius.to(u.arcsec).value)
 
             if reduce_cube:
+                from astropy.coordinates import Angle
                 longitude = coordinate.l
                 latitude = coordinate.b
                 vel_unit, lat_axis_values, lon_unit = self.world[int(self.shape[0]/2), :, int(self.shape[2]/2)]
-                lat_slice_up = find_nannearest_idx(lat_axis_values, latitude+radius*1.2)[0]
-                lat_slice_down = find_nannearest_idx(lat_axis_values, latitude-radius*1.2)[0]
-                lat_slices = np.sort([lat_slices_up, lat_slices_down])
+                lat_slice_up = find_nannearest_idx(lat_axis_values, latitude+radius*1.5)[0]
+                lat_slice_down = find_nannearest_idx(lat_axis_values, latitude-radius*1.5)[0]
+                lat_slices = np.sort([lat_slice_up, lat_slice_down])
+                if lat_slices[0] == lat_slices[1]:
+                    lat_slices[1] += 1
+                    lat_slices[0] += 1
 
                 _, lat_unit, lon_axis_values = self.world[int(self.shape[0]/2), int(self.shape[1]/2), :]
-                lon_slice_up = find_nannearest_idx(lon_axis_values, longitude+radius*1.2)[0]
-                lon_slice_down = find_nannearest_idx(lon_axis_values, longitude-radius*1.2)[0]
-                lon_slices = np.sort([lon_slices_up, lon_slices_down])
+                # Ensure all angles are wrapped at 180
+                lon_axis_values = Angle(lon_axis_values).wrap_at("180d")
+                longitude = Angle(longitude).wrap_at("180d")
+                lon_slice_up = find_nannearest_idx(lon_axis_values, longitude+radius*1.5)[0]
+                lon_slice_down = find_nannearest_idx(lon_axis_values, longitude-radius*1.5)[0]
+                lon_slices = np.sort([lon_slice_up, lon_slice_down])
+                if lon_slices[0] == lon_slices[1]:
+                    lon_slices[1] += 1
+                    lon_slices[0] -= 1
 
-                smaller_cube = cube[:,lat_slices[0]:lat_slices[1], lon_slices[0]:lon_slices[1]]
+                smaller_cube = self[:,lat_slices[0]:lat_slices[1], lon_slices[0]:lon_slices[1]]
                 subcube = smaller_cube.subcube_from_ds9region(ds9_str)
             else:
                 subcube = self.subcube_from_ds9region(ds9_str)

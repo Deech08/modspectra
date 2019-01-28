@@ -1107,21 +1107,21 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
 
         # Define default parameters if needed
         if defaults:
-            if not resolution:
+            if resolution == None:
                 resolution = (128,128,128)
-            if not vel_resolution:
+            if vel_resolution == None:
                 vel_resolution = 550
-            if not L_range:
+            if L_range == None:
                 L_range = [-10,10]*u.deg
-            if not B_range:
+            if B_range == None:
                 B_range = [-8,8] * u.deg
-            if not D_range:
+            if D_range == None:
                 D_range = [5,13] * u.kpc
             if species == None:
                 species = 'hi'
-            if not vmin:
+            if vmin == None:
                 vmin = -325. * u.km/u.s
-            if not vmax:
+            if vmax == None:
                 vmax = 325. * u.km/u.s
 
         if create:
