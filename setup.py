@@ -16,7 +16,7 @@ PACKAGENAME = metadata.get('package_name', 'modspectra')
 DESCRIPTION = metadata.get('description', 'Package to create 3D synthetic spectroscopic observations of neutral and ionized gas.')
 AUTHOR = metadata.get('author', 'Dhanesh Krishnarao (DK)')
 AUTHOR_EMAIL = metadata.get('author_email', '')
-LICENSE = metadata.get('license', 'unknown')
+LICENSE = metadata.get('license', 'BSD 3-Clause License')
 URL = metadata.get('url', 'https://github.com/Deech08/modspectra')
 __minimum_python_version__ = metadata.get("minimum_python_version", "3.6")
 
