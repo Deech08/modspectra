@@ -3,14 +3,14 @@ Custom Position-Position-Velocity Cubes
 
 While `modspectra` was initially created to create HI and H-Alpha models
 specific towards Krishnarao, Benjamin, & Haffner (2019), the underlying
-methods can be used to create custom PPV cubes using `~modspectra.cube.EllipticalLBV`
+methods can be used to create custom PPV cubes using `~modspectra.cube.EmissionLBV`
 
 Though the name implies an elliptical geometry, in reality, any geometry 
 and density distribution can be used. The underlying code relies on on 
 `astropy.coordinates.GalacticLSR` coordinate frame object to supply coordinate
 and velocity information and a density grid to be provided. 
 
-We can custom create these and input them into `~modspectra.cube.EllipticalLBV`. 
+We can custom create these and input them into `~modspectra.cube.EmissionLBV`. 
 Start by creating a regularly spaced grid in PPV space in Galactic Coordinates::
 
     >>> # Import statements
@@ -119,7 +119,7 @@ a constant angular velocity is used::
     >>> lbd_coords_withvel = galcen_coords_withvel.transform_to(coord.GalacticLSR())
 
 
-`~modspectra.cube.EllipticalLBV` can now be used to compute a PPV cube. It requires some
+`~modspectra.cube.EmissionLBV` can now be used to compute a PPV cube. It requires some
 specialized arguments in the following order:
 
 * lbd_coords_withvel: the coordinates we computed in Galactic Coordinates with Velocity Information
@@ -150,9 +150,9 @@ using the Marshall et al. (2006) 3D dustmaps. For this example, we will do an HI
     >>> vmax = 300 * u.km/u.s
     >>> vel_resolution = 550
 
-    >>> # Run EllipticalLBV
-    >>> from modspectra.cube import EllipticalLBV
-    >>> data, wcs = EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, 
+    >>> # Run EmissionLBV
+    >>> from modspectra.cube import EmissionLBV
+    >>> data, wcs = EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, 
                                 vel_disp, vmin, vmax, vel_resolution, 
                                 L_range, B_range, species = 'hi')
 

@@ -631,7 +631,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 
 
 
-def EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
+def EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
                     vel_resolution, L_range, B_range, species = 'hi', visualize = False,
                     T_gas = 120. *u.K, memmap = False, da_chunks_xyz = 50, redden = None, case = 'B'):
     """
@@ -1255,7 +1255,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
 
             # Create LBV Cube
 
-            data, wcs = EllipticalLBV(self.LBD_output[0], self.LBD_output[1], 
+            data, wcs = EmissionLBV(self.LBD_output[0], self.LBD_output[1], 
                                 self.LBD_output[2], vel_disp, vmin, vmax, 
                                 vel_resolution, L_range.value, B_range.value, visualize = visualize, redden = redden,
                                 species = species, T_gas = T_gas, memmap = memmap, da_chunks_xyz = da_chunks_xyz, 

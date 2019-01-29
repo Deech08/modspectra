@@ -255,7 +255,7 @@ def test_parameter_units():
     assert allclose(cube, cube_dif_unit)
 
 def test_lbv_units():
-    from ..cube import EllipticalLBV
+    from ..cube import EmissionLBV
     from numpy import allclose
     import astropy.units as u
     '''
@@ -304,14 +304,15 @@ def test_lbv_units():
     vel_disp = 9*u.km/u.s
     vmin = -300 * u.km/u.s
     vmax = 300 * u.km/u.s
+    T_gas = 120 * u.K
     vel_resolution = 200
 
-    data, _ = EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, 
+    data, _ = EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, 
                                 vel_disp.value, vmin.value, vmax.value, vel_resolution, 
-                                L_range, B_range)
-    data_dif_units, _ = EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, 
+                                L_range, B_range, T_gas = T_gas.value)
+    data_dif_units, _ = EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, 
                                 vel_disp.to(u.kpc/u.Gyr), vmin.to(u.m/u.s), vmax.to(u.cm/u.s), vel_resolution, 
-                                L_range, B_range)
+                                L_range, B_range, T_gas = T_gas.to(u.deg_C))
     assert allclose(data.value, data_dif_units.value)
 
 
