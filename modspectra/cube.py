@@ -718,8 +718,6 @@ def EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
         T_gas = u.Quantity(T_gas, unit = u.K)
         logging.warning("No units specified for T_gas, assuming"
              "{}".format(T_gas.unit))
-    elif not T_gas.unit == u.K:
-        T_gas = T_gas.to(u.K)
 
     if redden:
         from extinction import fm07 as extinction_law

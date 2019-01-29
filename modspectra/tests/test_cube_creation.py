@@ -312,7 +312,7 @@ def test_lbv_units():
                                 L_range, B_range, T_gas = T_gas.value)
     data_dif_units, _ = EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, 
                                 vel_disp.to(u.kpc/u.Gyr), vmin.to(u.m/u.s), vmax.to(u.cm/u.s), vel_resolution, 
-                                L_range, B_range, T_gas = T_gas.to(u.deg_C))
+                                L_range, B_range, T_gas = T_gas)
     assert allclose(data.value, data_dif_units.value)
 
 
