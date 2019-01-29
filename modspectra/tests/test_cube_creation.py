@@ -254,3 +254,65 @@ def test_parameter_units():
                                              vel_resolution = vel_resolution)
     assert allclose(cube, cube_dif_unit)
 
+def test_lbv_units():
+    from ..cube import EllipticalLBV
+    from numpy import allclose
+    import astropy.units as u
+    '''
+    Ensure default unts and conversions made for LBV function as well
+    '''
+    nx,ny,nz = (32,32,32)
+    L_range = [-10,10] # Degrees Galactic Longitude
+    B_range = [-10,10] # Degrees Galactic Latitude
+    D_range = [6,10] # kpc
+
+    # Make LBD_grid
+    lbd_grid = np.mgrid[L_range[0]:L_range[1]:nx*1j,
+                         B_range[0]:B_range[1]:ny*1j,
+                         D_range[0]:D_range[1]:nz*1j]
+
+    import astropy.coordinates as coord
+
+    # Transform grid into a 3 x N array for Longitude, Latitude, Distance axes
+    lbd = lbd_grid.T.reshape(-1,3, order = "F").transpose()
+
+    # Random Velocity vectors
+    vel = 100.* random(lbd.shape)
+
+    # random density
+    dens_grid = 0.5 * random(lbd_grid[0,:,:,:].shape)
+
+    # Initiate astropy coordinates.Galactic object
+    lbd_coords = coord.Galactic(l = lbd[0,:]*u.deg, b = lbd[1,:]*u.deg, distance = lbd[2,:]*u.kpc)
+
+    galcen_coords = lbd_coords.transform_to(coord.Galactocentric()) 
+
+    galcen_coords_withvel = coord.Galactocentric(x = galcen_coords.x, y = galcen_coords.y, z = galcen_coords.z,
+                                v_x = vel[0,:]*u.km/u.s, v_y = vel[1,:]*u.km/u.s, v_z = vel[2,:]*u.km/u.s, 
+                                differential_type='cartesian')
+    lbd_coords_withvel = galcen_coords_withvel.transform_to(coord.GalacticLSR())
+
+    density_gridin = np.swapaxes(dens_grid, 0,2)
+
+    # Compute cdelt values
+    dD = lbd_grid[2,0,0,1] - lbd_grid[2,0,0,0]
+    dB = lbd_grid[1,0,1,1] - lbd_grid[1,0,0,0]
+    dL = lbd_grid[0,1,0,0] - lbd_grid[0,0,0,0]
+    cdelt = np.array([dL, dB, dD])
+
+    # Set other parameters / args
+    vel_disp = 9*u.km/u.s
+    vmin = -300 * u.km/u.s
+    vmax = 300 * u.km/u.s
+    vel_resolution = 200
+
+    data, _ = EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, 
+                                vel_disp.value, vmin.value, vmax.value, vel_resolution, 
+                                L_range, B_range)
+    data_dif_units, _ = EllipticalLBV(lbd_coords_withvel, density_gridin, cdelt, 
+                                vel_disp.to(u.kpc/u.Gyr), vmin.to(u.m/u.s), vmax.to(u.cm/u.s), vel_resolution, 
+                                L_range, B_range)
+    assert allclose(data.value, data_dif_units.value)
+
+
+
