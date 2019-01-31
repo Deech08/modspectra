@@ -10,6 +10,8 @@ from matplotlib.colors import LogNorm
 
 from astropy.visualization.wcsaxes.frame import RectangularFrame
 
+from spectral_cube import SpectralCube
+
 def find_nannearest_idx(array,value):
     idx = np.nanargmin(np.abs(array-value))
     return [idx]
@@ -185,10 +187,10 @@ class EmissionCubeMixin(object):
 
 
 
-    def lv_plot(self, latitude, swap_axes = False, fig = None, frame_class = RectangularFrame, aspect = 'auto',
+    def lv_plot(self, latitude, swap_axes = False, fig = None, frame_class = RectangularFrame,
                 orientation = 'vertical', vmin = .5, vmax = 500., norm = LogNorm(), cmap = 'YlGnBu_r',
-                invert_xaxis = False, invert_yaxis = False, spectral_unit = u.km/u.s, over_contour = None, 
-                levels = (0.1, 0.4, 1.8, 3.8, 7., 11., 16., 24.), cmap_contour = 'Reds', 
+                invert_xaxis = False, invert_yaxis = False, spectral_unit = u.km/u.s, over_contour = False, 
+                levels = 5, cmap_contour = 'Reds', subpad = 0.8,
                 contour_options = {}, **kwargs):
         """
         Plot a Longitude-Velocity slice of the data at the specified latitude
@@ -225,8 +227,9 @@ class EmissionCubeMixin(object):
             if True, will invert yaxis
         spectral_unit: 'astropy.units', optional, must be keyword
             if provided, convert spectral axis to these units
-        over_contour: 'EmissionCube or 'SpectralCube', optional, must be keyword
+        over_contour: 'EmissionCube', or 'SpectralCube', or bool, optional, must be keyword
             if provided, will overplot contours of this cube on image
+            if True, will overplot contours from self
         levels: 'list', optional, must be keyword
             contour levels to plot or number of contours to plot 
             passed to 'matplotlib.plt.contour'
@@ -234,54 +237,117 @@ class EmissionCubeMixin(object):
             cmap keyword to pass into 'matplotlib.plt.contour'
         contour_options: 'dict', optional, must be keyword
             additional keywords to pass into 'matplotlib.plt.contour'
+        subpad: 'number', optional, must be keyword
+            passed to fig.subplot_adjust
+            useful for placing colorbar better
         """    
 
         # Initiate figure instance if needed
         if not fig:
-            fig = plt.figure(figsize = (18,12))
+            fig = plt.figure()
 
         # Find Latitude slice index
         if isinstance(latitude, u.Quantity):
-            vel_unit, lat_axis_values, lon_unit = self.world[int(self.shape[1]/2), :, int(self.shape[2]/2)]
+            vel_unit, lat_axis_values, lon_unit = self.world[int(self.shape[0]/2), :, int(self.shape[2]/2)]
             lat_slice = find_nannearest_idx(lat_axis_values, latitude)[0]
-            if over_contour:
-                vel_unit_over, lat_axis_values_over, lon_unit_over = over_contour.world[int(over_contour.shape[1]/2), :, int(over_contour.shape[2]/2)]
-                lat_slice_over = find_nannearest_idx(lat_axis_values_over, latitude)[0]
-                wcs_over = over_contour[:,lat_slice_over,:].wcs
         else:
-            lat_slice = latitude
+            if latitude in range(self.shape[1]):
+                lat_slice = latitude
+                _,_,lon_unit = self.world[int(self.shape[1]/2), :, int(self.shape[2]/2)]
+
+            else:
+                raise TypeError()
+                print("lat_slice must either be a Quantity value or an index. Current index is out of range")
 
         if not swap_axes:
             data = self.hdu.data[:,lat_slice,:].transpose()
             slices = ('y', lat_slice, 'x')
-            if over_contour:
-                wcs_over.nx = over_contour[:,lat_slice_over,:].header['NAXIS%i' % (1)]
-                wcs_over.ny = over_contour[:,lat_slice_over,:].header['NAXIS%i' % (2)]
-                data_over = over_contour.hdu.data[:,lat_slice_over,:].transpose()
+
         else:
             data = self.hdu.data[:,lat_slice,:]
             slices = ('x', lat_slice, 'y')
-            if over_contour:
-                data_over = over_contour.hdu.data[:,lat_slice_over,:]
 
         # Create wcs axis object
         ax = fig.add_subplot(111, projection = self.wcs, slices = slices, frame_class = frame_class)
 
         # Plot image
         im = ax.imshow(data, cmap = cmap, norm = norm, 
-                vmin = vmin, vmax = vmax, aspect = aspect, **kwargs)
-
-        if over_contour:
-            ct_transform = ax.get_transform(wcs_over)
-            ct = ax.contour(data_over, cmap = cmap_contour, levels = levels, transform = ct_transform, **contour_options)
+                vmin = vmin, vmax = vmax, **kwargs)
 
         if invert_xaxis:
             ax.invert_xaxis()
         if invert_yaxis:
             ax.invert_yaxis()
 
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        if slices[0] == 'x':
+            lim_world = self.wcs.wcs_pix2world(xlim, (0,0), ylim, 0)
+        elif slices[0] == 'y':
+            lim_world = self.wcs.wcs_pix2world(ylim, (0,0), xlim, 0)
+
+        if orientation == 'vertical':
+            fig.subplots_adjust(right=subpad)
+        elif orientation == 'horizontal':
+            fig.subplots_adjust(top=subpad)
+        # ax.set_aspect(aspect)
+
+        if isinstance(over_contour, bool):
+            if over_contour:
+                lat_slice_over = lat_slice
+                ct = ax.contour(data, cmap = cmap_contour, levels = levels, **contour_options)
+        else:
+            cube = over_contour
+            if isinstance(latitude, u.Quantity):
+                vel_unit_over, lat_axis_values_over, lon_unit_over = cube.world[int(cube.shape[0]/2), :, int(cube.shape[2]/2)]
+                lat_slice_over = find_nannearest_idx(lat_axis_values_over, latitude)[0]
+            else:
+                if latitude in range(self.shape[1]):
+                    lat_slice_over = latitude
+                else:
+                    raise TypeError()
+                    print("lat_slice must either be a Quantity value or an index. Current index is out of range")
+            if not swap_axes:
+                data_over = cube.hdu.data[:,lat_slice_over,:].transpose()
+                slices_over = ('y', lat_slice_over, 'x')
+            else:
+                data_over = cube.hdu.data[:,lat_slice_over,:]
+                slices_over = ('x', lat_slice_over, 'y')
+            #Create New Axes and make transparent
+
+            newax = fig.add_axes(ax.get_position(), 
+                                 projection = cube.wcs, 
+                                 slices = slices_over, 
+                                 frame_class = frame_class)
+            newax.patch.set_visible(False)
+            newax.yaxis.set_visible(False)
+            newax.xaxis.set_visible(False)
+
+            ct = newax.contour(data_over, cmap = cmap_contour, levels = levels, **contour_options)
+
+            lim_pix_over = cube.wcs.wcs_world2pix(lim_world[0], (0,0), lim_world[2], 0)
+            newax.tick_params(labelbottom=False, axis = 'x')
+            if slices_over[0] == 'x':
+                newax.set_xlim(lim_pix_over[0])
+                newax.set_ylim(lim_pix_over[2])
+            elif slices_over[0] == 'y':
+                newax.set_xlim(lim_pix_over[2])
+                newax.set_ylim(lim_pix_over[0])
+            newax.get_xaxis().set_visible(False)
+            newax.get_yaxis().set_visible(False)
+            newax.coords[2].set_format_unit(spectral_unit)
+            if orientation == 'vertical':
+                fig.subplots_adjust(right=subpad)
+            elif orientation == 'horizontal':
+                fig.subplots_adjust(top=subpad)
+            # newax.set_aspect(aspect)
+
+
+
         ax.coords[2].set_format_unit(spectral_unit)
 
+        
+        # plt.tight_layout(pad = 7)
 
         # Add axis labels
         lon_label = 'Galactic Longitude ' + '({})'.format(lon_unit.unit)
@@ -293,9 +359,23 @@ class EmissionCubeMixin(object):
             ax.set_ylabel(lon_label, fontsize = 16)
             ax.set_xlabel(vel_label, fontsize = 16)
 
+
         # Add colorbar
-        cbar = fig.colorbar(im, orientation = orientation)
-        cbar.set_label('{}'.format(self.unit), size = 16)
+        if orientation == 'vertical':
+            cbar_ax = fig.add_axes([0.85, 0.12, 0.04, 0.75])
+            cbar = fig.colorbar(im, orientation = orientation, cax = cbar_ax)
+            cbar.set_label('{}'.format(self.unit), size = 16)
+        elif orientation == 'horizontal':
+            # fig.subplots_adjust(top=0.8)
+            cbar_ax = fig.add_axes([0.12, 0.85, 0.75, 0.04])
+            cbar = fig.colorbar(im, orientation = orientation, cax = cbar_ax)
+            cbar.set_label('{}'.format(self.unit), size = 16)
+            cbar_ax.xaxis.set_ticks_position('top')
+            cbar_ax.xaxis.set_label_position('top')
+        
+        
+        # plt.tight_layout(pad = 7)
+        return fig
 
 
 
@@ -381,6 +461,8 @@ class EmissionCubeMixin(object):
         else:
             ax.set_ylabel(lon_label, fontsize = 16)
             ax.set_xlabel(vel_label, fontsize = 16)
+
+        return fig
 
 
 

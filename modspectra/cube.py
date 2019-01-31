@@ -28,11 +28,6 @@ import datetime
 
 # Helper Functions
 
-def ensure_dir(file_path):
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
 def find_nearest_idx(array,value):
     idx = (np.abs(array-value)).argmin()
     return [idx]

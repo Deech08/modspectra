@@ -37,4 +37,9 @@ You can also install the latest developer version in a single line with pip::
 
     pip install git+https://github.com/Deech08/modspectra.git
 
+.. note:: Known Install Issue:
+   dask may not install all requirementents needed for memmap procedure.
+   If you use conda, you can fix this by running::
+   conda install dask
+
 

@@ -3,19 +3,18 @@ import matplotlib.pyplot as plt
 import astropy.units as u
 from ..cube import EmissionCube
 
-test_cube = EmissionCube.create_LB82(resolution = (32,32,32))
+test_cube = EmissionCube.create_LB82(resolution = (32,32,32), vel_resolution = 64)
+test_cube_over = EmissionCube.create_LB82(resolution = (64,64,64), vel_resolution = 32)
 
 def _run_lv_plot(latitude, **kwargs):
     cube = test_cube
-    fig = plt.figure()
-    cube.lv_plot(latitude, fig = fig, **kwargs)
-    return fig
+    return cube.lv_plot(latitude, **kwargs)
+
 
 def _run_lv_contour(latitude, **kwargs):
     cube = test_cube
-    fig = plt.figure()
-    cube.lv_contour(latitude, fig = fig, **kwargs)
-    return fig
+    return cube.lv_contour(latitude, **kwargs)
+
 
 BASELINE_DIR = 'baseline'
 
@@ -56,5 +55,29 @@ def test_contour_swap_axes():
 @pytest.mark.mpl_image_compare(baseline_dir=BASELINE_DIR)
 def test_levels():
     return _run_lv_contour(default_lat, levels = 5)
+
+@pytest.mark.mpl_image_compare(baseline_dir=BASELINE_DIR)
+def test_over_true():
+    return _run_lv_plot(default_lat, over_contour = True)
+
+@pytest.mark.mpl_image_compare(baseline_dir=BASELINE_DIR)
+def test_over_other_cube():
+    return _run_lv_plot(default_lat, over_contour = test_cube_over)
+
+@pytest.mark.mpl_image_compare(baseline_dir=BASELINE_DIR)
+def test_over_other_cube_swap():
+    return _run_lv_plot(default_lat, over_contour = test_cube_over, swap_axes = True)
+
+@pytest.mark.mpl_image_compare(baseline_dir=BASELINE_DIR)
+def test_over_other_cube_horizontal():
+    return _run_lv_plot(default_lat, over_contour = test_cube_over, orientation = "horizontal")
+
+@pytest.mark.mpl_image_compare(baseline_dir=BASELINE_DIR)
+def test_over_other_cube_latidx():
+    return _run_lv_plot(10, over_contour = test_cube_over)
+
+
+
+
 
 
