@@ -16,6 +16,7 @@ affiliations:
    index: 1
 date: 31 January 2019
 bibliography: paper.bib
+---
 
 # Summary
 
@@ -33,3 +34,5 @@ Extinction corrections can be made in 3D for the optical emission using @Marshal
 An example of the type of emission models that can be created using this package is below. In this example, a rotating polar ring structure in HI is tilted along two axes and a resulting first-moment map is plotted, showing the mean velocity of the gas.
 
 ![Example polar ring model created using ``modspectra``.](figure.pdf)
+
+# References
