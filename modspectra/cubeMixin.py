@@ -118,7 +118,7 @@ class EmissionCubeMixin(object):
                 if not isinstance(latitude, u.Quantity):
                     latitude = latitude * u.deg
                 
-                ds9_str = 'Galactic; circle({0:.3}, {1:.4}, {2:.4}")'.format(longitude.value, latitude.value, radius.to(u.arcsec).value)
+                ds9_str = 'galactic; circle({0:.3}, {1:.4}, {2:.4}")'.format(longitude.value, latitude.value, radius.to(u.arcsec).value)
                 if reduce_cube:
                     from astropy.coordinates import Angle
                     vel_unit, lat_axis_values, lon_unit = self.world[int(self.shape[0]/2), :, int(self.shape[2]/2)]
@@ -148,7 +148,7 @@ class EmissionCubeMixin(object):
                     subcube = self.subcube_from_ds9region(ds9_str)
         else:
             coordinate_gal = coordinate.transform_to('galactic')
-            ds9_str = 'Galactic; circle({0:.3}, {1:.4}, {2:.4}")'.format(coordinate_gal.l.wrap_at("180d").value, 
+            ds9_str = 'galactic; circle({0:.3}, {1:.4}, {2:.4}")'.format(coordinate_gal.l.wrap_at("180d").value, 
                                                                          coordinate_gal.b.value, 
                                                                          radius.to(u.arcsec).value)
 
