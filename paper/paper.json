@@ -1,0 +1,24 @@
+
+{
+  "@context": "https://raw.githubusercontent.com/codemeta/codemeta/master/codemeta.jsonld",
+  "@type": "Code",
+  "author": [
+    {
+      "@id": "https://orcid.org/0000-0002-7955-7359",
+      "@type": "Person",
+      "email": "krishnarao@astro.wisc.edu",
+      "name": "Dhanesh Krishnarao",
+      "affiliation": "University of Wisconsin-Madison"
+    }
+  ],
+  "identifier": "",
+  "codeRepository": "https://github.com/Deech08/modspectra",
+  "datePublished": "2018-02-01",
+  "dateModified": "2018-02-01",
+  "dateCreated": "2018-02-01",
+  "description": "A Python Package for Synthetic Spectra of Neutral and Ionized Gas",
+  "keywords": "astronomy, interstellar medium, emission lines, position-position-velocity, kinematics",
+  "license": "BSD 3-Clause License",
+  "title": "modspectra",
+  "version": "v0.1.0"
+}

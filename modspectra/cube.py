@@ -334,7 +334,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 
         # Create standard numpy ndarray of disk_coords and reshape to grid, matching original lbd_grid object 
         disk_coords_arr = delayed(np.array)([disk_coords.x.value, disk_coords.y.value, disk_coords.z.value])
-        xyz_grid = delayed(da.from_array)(disk_coords_arr.T.transpose().reshape(-1,nx,ny,nz),
+        xyz_grid = delayed(da.from_array)(disk_coords_arr.reshape(-1,nx,ny,nz),
                                             chunks = (-1,da_chunks_xyz,da_chunks_xyz,da_chunks_xyz)) 
 
         # initiate partial object to solve for Ellipse Equation
@@ -353,7 +353,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
         #with ProgressBar():
         bd_vals_arr = delayed(da.from_array)(bd_vals, chunks = int(da_chunks_xyz * da_chunks_xyz * 0.125 * da_chunks_xyz))
         #print("start bd_grid Calculation")
-        bd_grid = delayed(da.from_array)(bd_vals_arr.T.transpose().reshape(nx,ny,nz), chunks = da_chunks_xyz)
+        bd_grid = delayed(da.from_array)(bd_vals_arr.reshape(nx,ny,nz), chunks = da_chunks_xyz)
 
         # Create grid of ad values (semi-major axis) derived from bd values
         ad_grid = delayed(bd_grid * (el_constant1 + el_constant2 * bd_grid / bd_max))
@@ -498,7 +498,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
 
         # Create standard numpy ndarray of disk_coords and reshape to grid, matching original lbd_grid object   
         disk_coords_arr = np.array([disk_coords.x.value, disk_coords.y.value, disk_coords.z.value])
-        xyz_grid = disk_coords_arr.T.transpose().reshape(-1,nx,ny,nz)
+        xyz_grid = disk_coords_arr.reshape(-1,nx,ny,nz)
 
         # initiate partial object to solve for Ellipse Equation
         partial_bd_solver = partial(bd_solver, xyz=disk_coords_arr, z_sigma_lim = z_sigma_lim, Hz = Hz, 
@@ -508,7 +508,7 @@ def EllipticalLBD(resolution, bd_max, Hz, z_sigma_lim, dens0,
         bd_vals = pool.map(partial_bd_solver, range(len(disk_coords.x.value)))
         pool.close()
         # Create grid of bd values solved from Ellipse Equation, matching original lbd_grid object
-        bd_grid = np.array(bd_vals).T.transpose().reshape(nx,ny,nz)
+        bd_grid = np.array(bd_vals).reshape(nx,ny,nz)
 
         # Create grid of ad values (semi-major axis) derived from bd values
         ad_grid = ne.evaluate("bd_grid * (el_constant1 + el_constant2 * bd_grid / bd_max)")
@@ -738,7 +738,7 @@ def EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
 
     # Define the velocity channels
     VR, dv = np.linspace(vmin,vmax,vel_resolution, retstep=True)
-    vr_grid = np.swapaxes(lbd_coords_withvel.radial_velocity.value.T.transpose().reshape(nx,ny,nz),0,2)
+    vr_grid = np.swapaxes(lbd_coords_withvel.radial_velocity.value.reshape(nx,ny,nz),0,2)
 
     # Calculate my sigma values
     vr_grid_plus = vr_grid[:,:,:,None]
@@ -792,7 +792,7 @@ def EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
 
                 trans_ha = 10**(-0.4 * A_V_to_A_ha * A_KS_to_A_v * marshall_AK)
                 # print('Computed Av')
-                trans_grid = da.swapaxes(trans_ha.T.transpose().reshape(nx,ny,nz), 0,2)
+                trans_grid = da.swapaxes(trans_ha.reshape(nx,ny,nz), 0,2)
                 EM = delayed(EM * trans_grid)
 
             EM = delayed(EM * a_0_constant / vel_disp.value * (T_gas.value/10.**4)**(b_constant))
@@ -842,7 +842,7 @@ def EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
 
                 trans_ha = 10**(-0.4 * A_V_to_A_ha * A_KS_to_A_v * marshall_AK)
                 # print('Computed Av')
-                trans_grid = np.swapaxes(trans_ha.T.transpose().reshape(nx,ny,nz), 0,2)
+                trans_grid = np.swapaxes(trans_ha.reshape(nx,ny,nz), 0,2)
                 EM *= trans_grid
 
             emission_cube = np.einsum('jkli, jkl->ijkl', gaussian_cells, 

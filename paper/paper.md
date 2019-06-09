@@ -31,7 +31,7 @@ Elliptical Gas Disk around Galactic Center inspried by @Burton&Liszt:1982. The b
 
 Extinction corrections can be made in 3D for the optical emission using @Marshall:2006 dustmaps implented via `dustmaps` [@dustmaps] and `extinction` [@extinction]. 
 
-An example of the type of emission models that can be created using this package is below. In this example, a rotating polar ring structure in HI is tilted along two axes and a resulting first-moment map is plotted, showing the mean velocity of the gas.
+An example of the type of emission models that can be created using this package is below. In this example, a rotating polar ring structure in H-Alpha is tilted along two axes and a resulting integrated and reddened map is plotted.
 
 ![Example polar ring model created using ``modspectra``.](figure.pdf)
 

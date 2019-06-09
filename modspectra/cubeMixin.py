@@ -163,7 +163,7 @@ class EmissionCubeMixin(object):
                 if np.abs(lat_slices[0] - lat_slices[1]) < 3:
                     logging.warning("Specified beam radius is smaller than cube resolution in latitude")
                     lat_slices[1] += 2
-                    lat_slices[0] += 2
+                    lat_slices[0] -= 2
 
                 _, lat_unit, lon_axis_values = self.world[int(self.shape[0]/2), int(self.shape[1]/2), :]
                 # Ensure all angles are wrapped at 180
