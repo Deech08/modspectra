@@ -1274,7 +1274,11 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
 
 
 
-            
+        # Add placeholder masks for v0.4.4
+        if mask is None:
+            from spectral_cube import BooleanArrayMask
+            mask_array = np.ones_like(data.value, dtype = bool)
+            mask = BooleanArrayMask(mask=mask_array, wcs=wcs) 
 
         
         # Initialize Spectral Cube Object
@@ -1313,6 +1317,11 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             self.species = model_header['SPECIES']
             self.vmin = model_header['VMIN'] * u.Unit(model_header['VMIN_U'])
             self.vmax = model_header['VMAX'] * u.Unit(model_header['VMAX_U'])
+
+
+
+        
+
 
 
         

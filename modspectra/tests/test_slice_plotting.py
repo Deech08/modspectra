@@ -36,7 +36,7 @@ def test_swap_axes():
 def test_data_range():
     return _run_lv_plot(default_lat, vmin = 0.01, vmax = 100.)
 
-@pytest.mark.mpl_image_compare(baseline_dir=BASELINE_DIR)
+@pytest.mark.mpl_image_compare(baseline_dir=BASELINE_DIR, tolerance = 5)
 def test_norm_none():
     return _run_lv_plot(default_lat, vmin = 0.01, vmax = 10., norm = None)
 

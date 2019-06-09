@@ -10,7 +10,7 @@ This package has the following dependencies:
 * `Numpy <http://www.numpy.org>`_ 1.8 or later
 * `Astropy <http://www.astropy.org>`__ 1.0 or later
 * `Scipy <https://www.scipy.org/>`_ 1.2 or later
-* `spectral cube <https://spectral-cube.readthedocs.io/en/latest/#>`_ =0.4.3 (0.4.4 currently not supported...)
+* `spectral cube <https://spectral-cube.readthedocs.io/en/latest/#>`_ >=0.4.4
 * `numexpr <https://numexpr.readthedocs.io/en/latest/user_guide.html>`_ 2.0 or later
 * `extinction <https://extinction.readthedocs.io/en/latest/>`_>=0.4.0
 * `dustmaps <https://github.com/gregreen/dustmaps>`_>=1.0.3

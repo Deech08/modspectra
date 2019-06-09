@@ -28,7 +28,7 @@ else
 	pip install healpy
 fi
 pip install dustmaps
-pip install spectral-cube==0.4.3
+pip install spectral-cube
 pip install --no-deps pyregion
 pip install pytest-mpl
 
