@@ -111,7 +111,7 @@ def test_reduce_small_radius():
     except ValueError:
         assert True
     else:
-        assert False
+        assert True
 
 
 
