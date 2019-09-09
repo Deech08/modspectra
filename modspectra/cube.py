@@ -84,9 +84,9 @@ class TiltedDisk(coord.BaseCoordinateFrame):
 
     # Specify frame attributes required to fully specify the frame
     # Rotation angles
-    alpha = coord.QuantityAttribute(default=13.5*u.rad, unit = u.rad)
-    beta = coord.QuantityAttribute(default=20.*u.rad, unit = u.rad)
-    theta = coord.QuantityAttribute(default=48.5*u.rad, unit = u.rad)
+    alpha = coord.QuantityAttribute(default=13.5*u.deg, unit = u.rad)
+    beta = coord.QuantityAttribute(default=20.*u.deg, unit = u.rad)
+    theta = coord.QuantityAttribute(default=48.5*u.deg, unit = u.rad)
 
 
 
