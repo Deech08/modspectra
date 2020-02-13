@@ -25,9 +25,9 @@ Elliptical Gas Disk around Galactic Center.
 It provides the following main features:
 
 -The ability to create synthetic 3D Data cubes of HI emission following the 
-model of Liszt & Burton (1982)
+model of Liszt & Burton (1980)
 -The ability to create synthetic 3D Data cubes of H-Alpha emission following
-the model of Krishnarao, Benjamin, Haffner (2019), including reddening by dust.
+the model of Krishnarao, Benjamin, Haffner (2020), including reddening by dust.
 -The ability to create synthetic line spectra for any provided coordinate in
 the sky for HI or H-Alpha emission from the models mentioned above.
 
@@ -64,9 +64,9 @@ Quick Start
 Here is a simple script demonstrating the modspectra package::
 
 	>>> from modspectra.cube import EmissionCube
-	>>> hi_cube = EmissionCube.create_LB82() # Create HI Model Cube
-	>>> ha_cube = EmissionCube.create_DK19() # Create H-Alpha Model Cube
+	>>> hi_cube = EmissionCube.create_LB80() # Create HI Model Cube
+	>>> ha_cube = EmissionCube.create_DK20() # Create H-Alpha Model Cube
 
 	# Save Data Cubes as fits files
-	>>> hi_cube.write("LisztBurton1982_HI_Model.fits", model = True)
-	>>> ha_cube.write("DK2019_HA_Model.fits", model = True)
+	>>> hi_cube.write("LisztBurton1980_HI_Model.fits", model = True)
+	>>> ha_cube.write("DK2020_HA_Model.fits", model = True)

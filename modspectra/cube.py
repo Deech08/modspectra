@@ -959,7 +959,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         used for diagnosing issues
         most information can be determined / converted from initial 3 output elements
         only other useful bit is bd_grid - may incorporate into default output in future
-    LB82: 'bool', optional, must be keyword
+    LB80: 'bool', optional, must be keyword
         if True, will create a default cube with the exact parameters of Liszt & Burton (1982)
         if any parameters are already set, they will be used instead
     defaults: 'bool'
@@ -982,7 +982,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
     model_header: 'fits.header'
         Provide header to gather model parameters and information
         only used if EmissionCube is from a model created by this package
-    DK19: 'bool'
+    DK20: 'bool'
         if true, will will create default H-Alpha cube with parameters of (Krishnarao et al. 2019)
         if any parameters are already set, they will be used instead
         
@@ -1005,15 +1005,15 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
                  vel_disp = None, vmin = None, vmax = None, visualize = False, redden = None,
                  flaring = None, flaring_radial = None, min_bd = None,
                  species = None, T_gas = None, LSR_options = {}, galcen_options = {}, return_all = False, 
-                 LB82 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None,
+                 LB80 = False, defaults = False, create = False, memmap = False, da_chunks_xyz = None,
                  LBD_output_in = None, LBD_output_keys_in = None, model_header = None, 
-                 DK19 = False, case = None, **kwargs):
+                 DK20 = False, case = None, **kwargs):
 
         if not meta:
             meta = {}
         
         # Define Burton & Liszt 1982 parameters if needed
-        if LB82:
+        if LB80:
             galcen_distance_factor = 8.127 / 10.
             if el_constant1 == None:
                 el_constant1 = 1.6
@@ -1048,7 +1048,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             if flaring_radial == None:
                 flaring_radial = False
 
-        if DK19:
+        if DK20:
             galcen_distance_factor = 8.127 / 10.
             if el_constant1 == None:
                 el_constant1 = 1.6
@@ -1442,10 +1442,10 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
             super().write(filename, overwrite = overwrite, format = format)
 
 
-    # Convenience functions for quickly making DK19 Disk
-    def create_DK19(**kwargs):
+    # Convenience functions for quickly making DK20 Disk
+    def create_DK20(**kwargs):
         """
-        Quick Create a DK19 H-Alpha emisison cube as described in Krishnarao, Benjamin, Haffner (2019)
+        Quick Create a DK20 H-Alpha emisison cube as described in Krishnarao, Benjamin, Haffner (2019)
 
         Parameters
         ----------
@@ -1453,12 +1453,12 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         **kwargs: passed to EmissionCube.__init
 
         """
-        return EmissionCube(create = True, DK19 = True, defaults = True, **kwargs)
+        return EmissionCube(create = True, DK20 = True, defaults = True, **kwargs)
 
-    # Convenience functions for quickly making LB82 Disk
-    def create_LB82(**kwargs):
+    # Convenience functions for quickly making LB80 Disk
+    def create_LB80(**kwargs):
         """
-        Quick Create a DK19 H-Alpha emisison cube as described in Krishnarao, Benjamin, Haffner (2019)
+        Quick Create a DK20 H-Alpha emisison cube as described in Krishnarao, Benjamin, Haffner (2019)
 
         Parameters
         ----------
@@ -1466,15 +1466,15 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         **kwargs: passed to EmissionCube.__init
 
         """
-        return EmissionCube(create = True, LB82 = True, defaults = True, **kwargs)
+        return EmissionCube(create = True, LB80 = True, defaults = True, **kwargs)
 
-    def create_DK19_spectrum(coordinate, radius, 
+    def create_DK20_spectrum(coordinate, radius, 
         l_resolution = 10, 
         b_resolution = 10, 
         distance_resolution = 200, 
         **kwargs):
         """
-        Quick Create a DK19 H-Alpha emisison spectrum for a given SkyCoord direction and beam radius
+        Quick Create a DK20 H-Alpha emisison spectrum for a given SkyCoord direction and beam radius
 
         Parameters
         ----------
@@ -1509,7 +1509,7 @@ class EmissionCube(EmissionCubeMixin, SpectralCube):
         L_range = [c_gal.l.to(u.deg) - radius.to(u.deg)*1.2, c_gal.l.to(u.deg) + radius.to(u.deg)*1.2]
         B_range = [c_gal.b.to(u.deg) - radius.to(u.deg)*1.2, c_gal.b.to(u.deg) + radius.to(u.deg)*1.2]
 
-        cube = EmissionCube.create_DK19(resolution = resolution, L_range = L_range, B_range = B_range, **kwargs)
+        cube = EmissionCube.create_DK20(resolution = resolution, L_range = L_range, B_range = B_range, **kwargs)
         print(cube)
         return cube.extract_beam(coordinate = c_gal, radius = radius, reduce_cube = False)
 

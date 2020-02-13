@@ -3,7 +3,7 @@ TiltedDisk Coordinate Frame
 
 The :class:`~modspectra.cube.TiltedDisk` class is an astropy coordinate frame 
 that describes the tilted elliptical disk structure of Liszt & Burton (1982) 
-as modified in Krishnarao, Benjamin, & Haffner (2019). Coordinate transformations
+as modified in Krishnarao, Benjamin, & Haffner (2020). Coordinate transformations
 can be done easily using the standard astropy.coordinates methods and the class
 is compatible with the `astropy.coordinates.SkyCoord` object::
 
