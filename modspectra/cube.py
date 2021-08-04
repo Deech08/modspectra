@@ -737,7 +737,7 @@ def EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
     nz, ny, nx = density_gridin.shape
 
     # Define the velocity channels
-    VR, dv = np.linspace(vmin,vmax,vel_resolution, retstep=True)
+    VR, dv = np.linspace(vmin.value,vmax.value,vel_resolution, retstep=True)
     vr_grid = np.swapaxes(lbd_coords_withvel.radial_velocity.value.reshape(nx,ny,nz),0,2)
 
     # Calculate my sigma values
@@ -854,7 +854,7 @@ def EmissionLBV(lbd_coords_withvel, density_gridin, cdelt, vel_disp, vmin, vmax,
     DBL_wcs.wcs.crval=[np.sum(L_range)/2, np.sum(B_range)/2, (vmax.value+vmin.value)/2]
     DBL_wcs.wcs.ctype=["GLON-CAR", "GLAT-CAR", "VRAD"]
     DBL_wcs.wcs.cunit=["deg", "deg", "km/s"]
-    DBL_wcs.wcs.cdelt=np.array([cdelt[0], cdelt[1], dv.value])
+    DBL_wcs.wcs.cdelt=np.array([cdelt[0], cdelt[1], dv])
 
     # Return Emission cube and WCS info
     return emission_cube, DBL_wcs
